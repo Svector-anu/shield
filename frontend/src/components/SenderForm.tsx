@@ -30,7 +30,7 @@ export default function SenderForm() {
     // 5. Generate the secure link
 
     try {
-      const response = await fetch('/api/policy', {
+            const response = await fetch('http://localhost:3001/api/policy', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -33,7 +33,7 @@ export default function ReceiverPage() {
     // 4. Based on the result, call the backend's verify endpoint
     const success = Math.random() > 0.5; // Placeholder for verification result
     try {
-      const response = await fetch(`/api/verify/${policyId}`, {
+            const response = await fetch(`http://localhost:3001/api/verify/${policyId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ success }),
