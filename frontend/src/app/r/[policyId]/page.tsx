@@ -69,8 +69,7 @@ import { doc, getDoc } from 'firebase/firestore';
           setVerificationStatus('invalid');
           setError('This link has expired or the maximum attempts have been reached.');
         } else {
-          // TODO: This will change back to faceCid once IPFS is re-integrated
-          setFaceDescriptorForVerification(new Float32Array(JSON.parse(policyData.faceDescriptor)));
+          setFaceCid(policyData.faceCid); // Store the faceCid
           setInfo('Please position your face in the frame.');
         }
       } catch (e: any) {

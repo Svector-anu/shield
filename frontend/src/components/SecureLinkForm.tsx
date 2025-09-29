@@ -115,8 +115,9 @@ const SecureLinkForm = () => {
       const encryptedData = CryptoJS.AES.encrypt(dataToEncrypt, secretKey).toString();
       const encryptedBlob = new Blob([encryptedData], { type: 'text/plain' });
 
-import { db } from '@/lib/firebase';
-import { doc, setDoc } from 'firebase/firestore';
+import { db, app } from '@/lib/firebase';
+import { getFunctions, httpsCallable } from 'firebase/functions';
+import { doc, setDoc, collection } from 'firebase/firestore';
 import toast from 'react-hot-toast';
 
 // ... (imports and component setup remain the same)
@@ -137,22 +138,32 @@ import toast from 'react-hot-toast';
     try {
       const secretKey = CryptoJS.lib.WordArray.random(32).toString(CryptoJS.enc.Hex);
       const encryptedData = CryptoJS.AES.encrypt(dataToEncrypt, secretKey).toString();
-      
-      // The resource is now just the encrypted string, not a blob
-      const resource = encryptedData;
       const faceDescriptorString = JSON.stringify(Array.from(faceDescriptor));
 
-      // Generate a unique ID for the policy document
-      const policyId = doc(collection(db, 'policies')).id;
+      // Get a reference to the cloud function
+      const functions = getFunctions(app);
+      const uploadToIpfs = httpsCallable(functions, 'uploadToIpfs');
 
-      // TODO: Still need to upload resource and descriptor to IPFS
-      // For now, we will store them directly in Firestore to prove the connection.
-      // This is a temporary step and is NOT the final architecture.
-      
-      // Create the policy document in Firestore
+      // Upload both the resource and the descriptor to IPFS via our function
+      setFeedbackMessage('Uploading to secure storage...');
+      const [resourceResult, descriptorResult] = await Promise.all([
+        uploadToIpfs({ data: encryptedData, type: 'string' }),
+        uploadToIpfs({ data: faceDescriptorString, type: 'json' }),
+      ]);
+
+      const resourceCid = resourceResult.data.cid;
+      const faceCid = descriptorResult.data.cid;
+
+      if (!resourceCid || !faceCid) {
+        throw new Error('Failed to get CIDs from IPFS upload.');
+      }
+
+      // Now, create the policy document in Firestore with the CIDs
+      setFeedbackMessage('Creating secure link...');
+      const policyId = doc(collection(db, 'policies')).id;
       await setDoc(doc(db, 'policies', policyId), {
-        resource: resource, // TEMPORARY
-        faceDescriptor: faceDescriptorString, // TEMPORARY
+        resourceCid: resourceCid,
+        faceCid: faceCid,
         secretKey: secretKey,
         expiry: Math.floor(Date.now() / 1000) + expiry,
         maxAttempts: maxAttempts,
@@ -163,9 +174,12 @@ import toast from 'react-hot-toast';
       const link = `${window.location.origin}/r/${policyId}`;
       setSecureLink(link);
       toast.success('Secure link generated successfully!');
+      setFeedbackMessage('');
+
     } catch (error) {
       console.error(error);
       toast.error('An error occurred. Please check the console.');
+      setFeedbackMessage('An error occurred. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
