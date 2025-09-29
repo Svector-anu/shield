@@ -13,8 +13,8 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en">
-      <body>
+    <html lang="en" className="h-full">
+      <body className="flex items-center justify-center min-h-screen">
         <StyledComponentsRegistry>
           <Pattern />
           {children}

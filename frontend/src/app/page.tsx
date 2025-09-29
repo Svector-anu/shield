@@ -1,9 +1,9 @@
-import SenderForm from "@/components/SenderForm";
+import SecureLinkForm from "@/components/SecureLinkForm";
 
 export default function Home() {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-4">
-      <SenderForm />
+    <main className="p-4">
+      <SecureLinkForm />
     </main>
   );
 }

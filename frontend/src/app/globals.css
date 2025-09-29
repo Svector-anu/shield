@@ -7,5 +7,4 @@
 body {
   font-family: 'Inter', sans-serif;
   color: #E5E7EB; /* A light gray for text on dark backgrounds */
-  overflow: hidden; /* Prevents scrollbars from the background pattern */
 }
