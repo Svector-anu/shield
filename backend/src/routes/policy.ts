@@ -9,32 +9,44 @@ const router = Router();
 // Configure multer for in-memory file storage
 const upload = multer({ storage: multer.memoryStorage() });
 
-// The route now uses multer middleware to handle a single file upload from a field named 'resource'
-router.post('/', upload.single('resource'), async (req: Request, res: Response) => {
+// Define the fields for multer to process
+const uploadFields = upload.fields([
+  { name: 'resource', maxCount: 1 },
+  { name: 'recipientFace', maxCount: 1 },
+]);
+
+router.post('/', uploadFields, async (req: Request, res: Response) => {
   try {
-    // 1. Check if a file was uploaded
-    if (!req.file) {
-      return res.status(400).json({ error: 'Resource file is required.' });
+    // Check if files were uploaded
+    if (!req.files || !('resource' in req.files) || !('recipientFace' in req.files)) {
+      return res.status(400).json({ error: 'Both a resource file and a recipient face image are required.' });
     }
 
-    // 2. Add the file to IPFS
-    const fileResult = await ipfs.add(req.file.buffer);
-    const fileCid = fileResult.cid.toString();
+    const files = req.files as { [fieldname: string]: Express.Multer.File[] };
 
-    // 3. Get policy details from the request body
+    // Add both files to IPFS in parallel for efficiency
+    const [resourceResult, faceResult] = await Promise.all([
+      ipfs.add(files.resource[0].buffer),
+      ipfs.add(files.recipientFace[0].buffer),
+    ]);
+
+    const resourceCid = resourceResult.cid.toString();
+    const faceCid = faceResult.cid.toString();
+
+    // Get policy details from the request body
     const { expiry, maxAttempts } = req.body;
 
-    // 4. Create the policy on the blockchain
+    // Create the policy on the blockchain
     const policyId = ethers.randomBytes(32);
     const tx = await shieldContract.createPolicy(policyId, expiry, maxAttempts);
     await tx.wait();
 
-    // 5. Store the mapping of policyId -> IPFS CID
     const policyIdHex = ethers.hexlify(policyId);
-    // Store the hex string without the '0x' prefix to match the URL parameter format
-    policyStore.set(policyIdHex.substring(2), fileCid);
+    
+    // Store both CIDs against the policyId
+    policyStore.set(policyIdHex.substring(2), { resourceCid, faceCid });
 
-    // 6. Return the policyId to the frontend
+    // Return the policyId to the frontend
     res.json({ policyId: policyIdHex });
 
   } catch (error) {

@@ -44,9 +44,15 @@ const SecureLinkForm = () => {
       resourceBlob = new Blob([textContent], { type: 'text/plain' });
     }
 
+    if (recipientImages.length === 0) {
+      alert('Please select a recipient face image.');
+      return;
+    }
+
     try {
       const formData = new FormData();
       formData.append('resource', resourceBlob, shareMode === 'file' ? file!.name : 'shared_content.txt');
+      formData.append('recipientFace', recipientImages[0]); // Add the face image
       formData.append('expiry', expiry.toString());
       formData.append('maxAttempts', maxAttempts.toString());
 
@@ -66,6 +72,15 @@ const SecureLinkForm = () => {
       console.error(error);
       alert('An error occurred. Please check the console.');
     }
+  };
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(secureLink).then(() => {
+      alert('Link copied to clipboard!');
+    }, (err) => {
+      console.error('Could not copy text: ', err);
+      alert('Failed to copy link.');
+    });
   };
 
   return (
@@ -111,10 +126,11 @@ const SecureLinkForm = () => {
 
         {secureLink && (
           <div className="secureLinkContainer">
-            <label>
-              <input className="input" type="text" readOnly value={secureLink} placeholder=" " />
-              <span>Your Secure Link</span>
-            </label>
+            <span className="secureLinkTitle">Your Secure Link</span>
+            <div className="link-wrapper">
+              <input type="text" readOnly value={secureLink} />
+              <button type="button" onClick={handleCopy}>Copy</button>
+            </div>
           </div>
         )}
       </form>
@@ -126,18 +142,19 @@ const StyledWrapper = styled.div`
   .form {
     display: flex;
     flex-direction: column;
-    gap: 20px;
-    max-width: 400px;
-    padding: 25px;
+    gap: 25px; /* Increased gap */
+    max-width: 550px; /* Increased width */
+    padding: 40px; /* Increased padding */
     border-radius: 20px;
     position: relative;
     background-color: #1a1a1a;
     color: #fff;
     border: 1px solid #333;
+    box-shadow: 0px 10px 30px rgba(0, 0, 0, 0.3); /* Added shadow */
   }
 
   .title {
-    font-size: 28px;
+    font-size: 32px; /* Increased font size */
     font-weight: 600;
     letter-spacing: -1px;
     position: relative;
@@ -159,8 +176,8 @@ const StyledWrapper = styled.div`
     background-color: #00bfff;
   }
 
-  .message { font-size: 14.5px; color: rgba(255, 255, 255, 0.7); }
-  .flex { display: flex; width: 100%; gap: 10px; }
+  .message { font-size: 15px; color: rgba(255, 255, 255, 0.7); } /* Increased font size */
+  .flex { display: flex; width: 100%; gap: 15px; } /* Increased gap */
   .form label { position: relative; }
 
   .form label .input {
@@ -179,7 +196,7 @@ const StyledWrapper = styled.div`
     resize: none;
   }
 
-  .file-label span { color: #00bfff; font-size: 0.7em; font-weight: 600; margin-bottom: 5px; display: block; }
+  .file-label span { color: #00bfff; font-size: 0.75em; font-weight: 600; margin-bottom: 5px; display: block; } /* Increased font size */
   .file-label .input { padding: 10px; }
 
   .form label .input + span {
@@ -187,17 +204,62 @@ const StyledWrapper = styled.div`
     position: absolute;
     left: 10px;
     top: 15px;
-    font-size: 0.9em;
+    font-size: 1em; /* Increased font size */
     cursor: text;
     transition: 0.3s ease;
   }
 
-  .form label .input:placeholder-shown + span { top: 15px; font-size: 0.9em; }
-  .form label .input:focus + span, .form label .input:valid + span { color: #00bfff; top: 4px; font-size: 0.7em; font-weight: 600; }
+  .form label .input:placeholder-shown + span { top: 15px; font-size: 1em; } /* Increased font size */
+  .form label .input:focus + span, .form label .input:valid + span { color: #00bfff; top: 4px; font-size: 0.75em; font-weight: 600; } /* Increased font size */
 
-  .submit { border: none; outline: none; padding: 10px; border-radius: 10px; color: #fff; font-size: 16px; transform: .3s ease; background-color: #00bfff; }
+  .input { font-size: medium; }
+
+  .submit { border: none; outline: none; padding: 12px; border-radius: 10px; color: #fff; font-size: 16px; transform: .3s ease; background-color: #00bfff; font-weight: bold; } /* Added bold and padding */
   .submit:hover { background-color: #00bfff96; }
-  .secureLinkContainer { margin-top: 10px; }
+  
+  .secureLinkContainer {
+    margin-top: 10px;
+  }
+
+  .secureLinkTitle {
+    color: #00bfff;
+    font-size: 0.75em;
+    font-weight: 600;
+    margin-bottom: 5px;
+    display: block;
+  }
+
+  .link-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .link-wrapper input {
+    background-color: #333;
+    color: #fff;
+    width: 100%;
+    padding: 10px;
+    outline: 0;
+    border: 1px solid rgba(105, 105, 105, 0.397);
+    border-radius: 10px;
+    font-size: 14px;
+  }
+
+  .link-wrapper button {
+    border: none;
+    outline: none;
+    padding: 10px;
+    border-radius: 10px;
+    color: #fff;
+    font-size: 14px;
+    background-color: #00bfff;
+    cursor: pointer;
+  }
+
+  .link-wrapper button:hover {
+    background-color: #00bfff96;
+  }
 
   .toggle-container {
     display: flex;

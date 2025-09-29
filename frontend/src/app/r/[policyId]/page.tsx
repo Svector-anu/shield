@@ -112,22 +112,31 @@ export default function ReceiverPage() {
         <h1 className="text-3xl font-bold text-gray-100">Face Verification</h1>
         {error && <p className="text-red-400">{error}</p>}
 
-        {verificationStatus === 'idle' && (
+        {(verificationStatus === 'idle' || verificationStatus === 'verifying') && (
           <>
             <p className="text-gray-400">
-              To access the secure resource, you need to verify your identity using your camera.
+              {verificationStatus === 'idle' 
+                ? 'To access the secure resource, you need to verify your identity using your camera.'
+                : 'Scanning... Please hold still.'
+              }
             </p>
-            <video ref={videoRef} autoPlay playsInline className="w-full rounded-lg border border-gray-700 mt-4"></video>
+            <div className="relative w-full mt-4 overflow-hidden rounded-lg border border-gray-700">
+              <video ref={videoRef} autoPlay playsInline className="w-full"></video>
+              {verificationStatus === 'verifying' && (
+                <div className="absolute inset-0">
+                  <div className="scanner-line"></div>
+                </div>
+              )}
+            </div>
             <button
               onClick={handleVerify}
-              className="w-full py-3 mt-4 font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-blue-500 transition-all duration-300"
+              disabled={verificationStatus === 'verifying'}
+              className="w-full py-3 mt-4 font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-blue-500 transition-all duration-300 disabled:bg-gray-500 disabled:cursor-not-allowed"
             >
-              Start Verification
+              {verificationStatus === 'verifying' ? 'Verifying...' : 'Start Verification'}
             </button>
           </>
         )}
-
-        {verificationStatus === 'verifying' && <p className="text-lg font-semibold text-gray-200">Verifying...</p>}
 
         {verificationStatus === 'success' && (
           <div>
