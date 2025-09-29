@@ -2,8 +2,12 @@
 
 import { useState } from 'react';
 
+type ShareMode = 'file' | 'text';
+
 export default function SenderForm() {
+  const [shareMode, setShareMode] = useState<ShareMode>('file');
   const [file, setFile] = useState<File | null>(null);
+  const [textContent, setTextContent] = useState<string>('');
   const [recipientImages, setRecipientImages] = useState<File[]>([]);
   const [expiry, setExpiry] = useState<number>(3600); // 1 hour in seconds
   const [maxAttempts, setMaxAttempts] = useState<number>(3);
@@ -21,24 +25,34 @@ export default function SenderForm() {
     }
   };
 
-    const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!file) {
-      alert('Please select a file to share.');
-      return;
+
+    let resourceBlob: Blob;
+    if (shareMode === 'file') {
+      if (!file) {
+        alert('Please select a file to share.');
+        return;
+      }
+      resourceBlob = file;
+    } else {
+      if (textContent.trim() === '') {
+        alert('Please enter some text to share.');
+        return;
+      }
+      resourceBlob = new Blob([textContent], { type: 'text/plain' });
     }
 
     // TODO: Implement client-side encryption before uploading
 
     try {
       const formData = new FormData();
-      formData.append('resource', file);
+      formData.append('resource', resourceBlob, shareMode === 'file' ? file!.name : 'shared_content.txt');
       formData.append('expiry', (Math.floor(Date.now() / 1000) + expiry).toString());
       formData.append('maxAttempts', maxAttempts.toString());
 
       const response = await fetch('http://localhost:3001/api/policy', {
         method: 'POST',
-        // NOTE: Do not set Content-Type header. The browser will set it automatically for FormData.
         body: formData,
       });
 
@@ -59,22 +73,40 @@ export default function SenderForm() {
     <div className="w-full max-w-lg p-8 space-y-6 bg-white rounded-lg shadow-md">
       <h1 className="text-2xl font-bold text-center text-gray-800">Create a Secure Link</h1>
       <form onSubmit={handleSubmit} className="space-y-6">
-        <div>
-          <label htmlFor="file" className="block text-sm font-medium text-gray-700">
-            Confidential Resource
-          </label>
-          <input
-            type="file"
-            id="file"
-            onChange={handleFileChange}
-            className="w-full px-3 py-2 mt-1 text-gray-700 bg-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            required
-          />
+        
+        {/* Share Mode Toggle */}
+        <div className="flex justify-center p-1 bg-gray-200 rounded-md">
+          <button type="button" onClick={() => setShareMode('file')} className={`w-1/2 py-2 rounded-md text-sm font-medium ${shareMode === 'file' ? 'bg-white shadow' : 'text-gray-600'}`}>File</button>
+          <button type="button" onClick={() => setShareMode('text')} className={`w-1/2 py-2 rounded-md text-sm font-medium ${shareMode === 'text' ? 'bg-white shadow' : 'text-gray-600'}`}>Text</button>
         </div>
+
+        {shareMode === 'file' ? (
+          <div>
+            <label htmlFor="file" className="block text-sm font-medium text-gray-700">Confidential File</label>
+            <input
+              type="file"
+              id="file"
+              onChange={handleFileChange}
+              className="w-full px-3 py-2 mt-1 text-gray-700 bg-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            />
+          </div>
+        ) : (
+          <div>
+            <label htmlFor="text-content" className="block text-sm font-medium text-gray-700">Confidential Text</label>
+            <textarea
+              id="text-content"
+              value={textContent}
+              onChange={(e) => setTextContent(e.target.value)}
+              className="w-full h-32 px-3 py-2 mt-1 text-gray-700 bg-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+              placeholder="Enter your secret message here..."
+            />
+          </div>
+        )}
+
         <div>
-          <label htmlFor="recipient-images" className="block text-sm font-medium text-gray-700">
-            Recipient Faces
-          </label>
+          <label htmlFor="recipient-images" className="block text-sm font-medium text-gray-700">Recipient Faces</label>
           <input
             type="file"
             id="recipient-images"
@@ -84,10 +116,9 @@ export default function SenderForm() {
             required
           />
         </div>
+        
         <div>
-          <label htmlFor="expiry" className="block text-sm font-medium text-gray-700">
-            Time Limit (seconds)
-          </label>
+          <label htmlFor="expiry" className="block text-sm font-medium text-gray-700">Time Limit (seconds)</label>
           <input
             type="number"
             id="expiry"
@@ -97,10 +128,9 @@ export default function SenderForm() {
             required
           />
         </div>
+        
         <div>
-          <label htmlFor="max-attempts" className="block text-sm font-medium text-gray-700">
-            Max Attempts
-          </label>
+          <label htmlFor="max-attempts" className="block text-sm font-medium text-gray-700">Max Attempts</label>
           <input
             type="number"
             id="max-attempts"
@@ -110,6 +140,7 @@ export default function SenderForm() {
             required
           />
         </div>
+
         <button
           type="submit"
           className="w-full py-3 font-semibold text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
