@@ -61,7 +61,6 @@ export default function ReceiverPage() {
             const blob = await contentResponse.blob();
             setFileUrl(URL.createObjectURL(blob));
           } else {
-            // For other types like PDF, provide a direct download link
             const blob = await contentResponse.blob();
             setFileUrl(URL.createObjectURL(blob));
           }
@@ -85,11 +84,11 @@ export default function ReceiverPage() {
     startCamera();
   }, []);
 
-    const renderContent = () => {
+  const renderContent = () => {
     if (!contentType) return <p>Fetching resource...</p>;
 
     if (contentType.startsWith('text/')) {
-      return <pre className="whitespace-pre-wrap font-sans">{resourceContent}</pre>;
+      return <pre className="whitespace-pre-wrap font-sans text-gray-200">{resourceContent}</pre>;
     }
 
     if (fileUrl) {
@@ -97,43 +96,44 @@ export default function ReceiverPage() {
         return <img src={fileUrl} alt="Decrypted resource" className="max-w-full h-auto rounded-md" />;
       } else {
         return (
-          <a href={fileUrl} download className="font-medium text-blue-600 hover:underline">
+          <a href={fileUrl} download className="font-medium text-blue-400 hover:underline">
             Download File
           </a>
         );
       }
     }
 
-    // If content is not text and fileUrl is not ready yet
     return <p>Loading resource...</p>;
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
-      <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-lg shadow-md text-center">
-        <h1 className="text-2xl font-bold text-gray-800">Face Verification</h1>
-        {error && <p className="text-red-500">{error}</p>}
+    <div className="flex flex-col items-center justify-center min-h-screen p-4">
+      <div className="w-full max-w-md p-8 space-y-6 bg-gray-900/50 backdrop-blur-sm border border-gray-700 rounded-2xl shadow-2xl shadow-blue-500/10 text-center">
+        <h1 className="text-3xl font-bold text-gray-100">Face Verification</h1>
+        {error && <p className="text-red-400">{error}</p>}
 
         {verificationStatus === 'idle' && (
           <>
-            <p className="text-gray-600">To access the secure resource, you need to verify your identity using your camera.</p>
-            <video ref={videoRef} autoPlay playsInline className="w-full rounded-md border"></video>
+            <p className="text-gray-400">
+              To access the secure resource, you need to verify your identity using your camera.
+            </p>
+            <video ref={videoRef} autoPlay playsInline className="w-full rounded-lg border border-gray-700 mt-4"></video>
             <button
               onClick={handleVerify}
-              className="w-full py-3 mt-4 font-semibold text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              className="w-full py-3 mt-4 font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-blue-500 transition-all duration-300"
             >
               Start Verification
             </button>
           </>
         )}
 
-        {verificationStatus === 'verifying' && <p className="text-lg font-semibold">Verifying...</p>}
+        {verificationStatus === 'verifying' && <p className="text-lg font-semibold text-gray-200">Verifying...</p>}
 
         {verificationStatus === 'success' && (
           <div>
-            <h2 className="text-2xl font-bold text-green-600">Verification Successful!</h2>
-            <p className="mt-2 text-gray-600">Here is your secure resource:</p>
-            <div className="p-4 mt-4 bg-gray-200 border rounded-md text-left">
+            <h2 className="text-2xl font-bold text-green-400">Verification Successful!</h2>
+            <p className="mt-2 text-gray-400">Here is your secure resource:</p>
+            <div className="p-4 mt-4 bg-gray-800 border border-gray-700 rounded-lg text-left">
               {renderContent()}
             </div>
           </div>
@@ -141,8 +141,8 @@ export default function ReceiverPage() {
 
         {verificationStatus === 'failed' && (
           <div>
-            <h2 className="text-2xl font-bold text-red-600">Verification Failed</h2>
-            <p className="mt-2 text-gray-600">{error || 'The link may be expired or invalid.'}</p>
+            <h2 className="text-2xl font-bold text-red-500">Verification Failed</h2>
+            <p className="mt-2 text-gray-400">{error || 'The link may be expired or invalid.'}</p>
           </div>
         )}
       </div>

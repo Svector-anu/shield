@@ -43,8 +43,6 @@ export default function SenderForm() {
       resourceBlob = new Blob([textContent], { type: 'text/plain' });
     }
 
-    // TODO: Implement client-side encryption before uploading
-
     try {
       const formData = new FormData();
       formData.append('resource', resourceBlob, shareMode === 'file' ? file!.name : 'shared_content.txt');
@@ -70,35 +68,34 @@ export default function SenderForm() {
   };
 
   return (
-    <div className="w-full max-w-lg p-8 space-y-6 bg-white rounded-lg shadow-md">
-      <h1 className="text-2xl font-bold text-center text-gray-800">Create a Secure Link</h1>
+    <div className="w-full max-w-lg p-8 space-y-6 bg-gray-900/50 backdrop-blur-sm border border-gray-700 rounded-2xl shadow-2xl shadow-blue-500/10">
+      <h1 className="text-3xl font-bold text-center text-gray-100">Create a Secure Link</h1>
       <form onSubmit={handleSubmit} className="space-y-6">
         
-        {/* Share Mode Toggle */}
-        <div className="flex justify-center p-1 bg-gray-200 rounded-md">
-          <button type="button" onClick={() => setShareMode('file')} className={`w-1/2 py-2 rounded-md text-sm font-medium ${shareMode === 'file' ? 'bg-white shadow' : 'text-gray-600'}`}>File</button>
-          <button type="button" onClick={() => setShareMode('text')} className={`w-1/2 py-2 rounded-md text-sm font-medium ${shareMode === 'text' ? 'bg-white shadow' : 'text-gray-600'}`}>Text</button>
+        <div className="flex justify-center p-1 bg-gray-800 rounded-full">
+          <button type="button" onClick={() => setShareMode('file')} className={`w-1/2 py-2 rounded-full text-sm font-medium ${shareMode === 'file' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:bg-gray-700/50'}`}>File</button>
+          <button type="button" onClick={() => setShareMode('text')} className={`w-1/2 py-2 rounded-full text-sm font-medium ${shareMode === 'text' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:bg-gray-700/50'}`}>Text</button>
         </div>
 
         {shareMode === 'file' ? (
           <div>
-            <label htmlFor="file" className="block text-sm font-medium text-gray-700">Confidential File</label>
+            <label htmlFor="file" className="block text-sm font-medium text-gray-400">Confidential File</label>
             <input
               type="file"
               id="file"
               onChange={handleFileChange}
-              className="w-full px-3 py-2 mt-1 text-gray-700 bg-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-3 mt-1 text-gray-300 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             />
           </div>
         ) : (
           <div>
-            <label htmlFor="text-content" className="block text-sm font-medium text-gray-700">Confidential Text</label>
+            <label htmlFor="text-content" className="block text-sm font-medium text-gray-400">Confidential Text</label>
             <textarea
               id="text-content"
               value={textContent}
               onChange={(e) => setTextContent(e.target.value)}
-              className="w-full h-32 px-3 py-2 mt-1 text-gray-700 bg-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full h-32 px-4 py-3 mt-1 text-gray-300 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
               placeholder="Enter your secret message here..."
             />
@@ -106,56 +103,58 @@ export default function SenderForm() {
         )}
 
         <div>
-          <label htmlFor="recipient-images" className="block text-sm font-medium text-gray-700">Recipient Faces</label>
+          <label htmlFor="recipient-images" className="block text-sm font-medium text-gray-400">Recipient Faces</label>
           <input
             type="file"
             id="recipient-images"
             multiple
             onChange={handleRecipientImagesChange}
-            className="w-full px-3 py-2 mt-1 text-gray-700 bg-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-4 py-3 mt-1 text-gray-300 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             required
           />
         </div>
         
-        <div>
-          <label htmlFor="expiry" className="block text-sm font-medium text-gray-700">Time Limit (seconds)</label>
-          <input
-            type="number"
-            id="expiry"
-            value={expiry}
-            onChange={(e) => setExpiry(Number(e.target.value))}
-            className="w-full px-3 py-2 mt-1 text-gray-700 bg-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            required
-          />
-        </div>
-        
-        <div>
-          <label htmlFor="max-attempts" className="block text-sm font-medium text-gray-700">Max Attempts</label>
-          <input
-            type="number"
-            id="max-attempts"
-            value={maxAttempts}
-            onChange={(e) => setMaxAttempts(Number(e.target.value))}
-            className="w-full px-3 py-2 mt-1 text-gray-700 bg-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            required
-          />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label htmlFor="expiry" className="block text-sm font-medium text-gray-400">Time Limit (seconds)</label>
+            <input
+              type="number"
+              id="expiry"
+              value={expiry}
+              onChange={(e) => setExpiry(Number(e.target.value))}
+              className="w-full px-4 py-3 mt-1 text-gray-300 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            />
+          </div>
+          
+          <div>
+            <label htmlFor="max-attempts" className="block text-sm font-medium text-gray-400">Max Attempts</label>
+            <input
+              type="number"
+              id="max-attempts"
+              value={maxAttempts}
+              onChange={(e) => setMaxAttempts(Number(e.target.value))}
+              className="w-full px-4 py-3 mt-1 text-gray-300 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            />
+          </div>
         </div>
 
         <button
           type="submit"
-          className="w-full py-3 font-semibold text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          className="w-full py-3 font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-blue-500 transition-all duration-300"
         >
           Generate Secure Link
         </button>
       </form>
       {secureLink && (
         <div className="mt-6">
-          <label className="block text-sm font-medium text-gray-700">Your Secure Link:</label>
+          <label className="block text-sm font-medium text-gray-400">Your Secure Link:</label>
           <input
             type="text"
             readOnly
             value={secureLink}
-            className="w-full px-3 py-2 mt-1 text-gray-700 bg-gray-100 border border-gray-300 rounded-md focus:outline-none"
+            className="w-full px-4 py-3 mt-1 text-gray-300 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none"
           />
         </div>
       )}
