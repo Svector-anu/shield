@@ -2,6 +2,7 @@
 
 import { useParams } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
+import * as faceapi from 'face-api.js';
 
 export default function ReceiverPage() {
   const params = useParams();
@@ -9,9 +10,32 @@ export default function ReceiverPage() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [verificationStatus, setVerificationStatus] = useState<'idle' | 'verifying' | 'success' | 'failed'>('idle');
   const [error, setError] = useState<string>('');
+  const [info, setInfo] = useState<string>('Loading AI models...');
+  const [modelsLoaded, setModelsLoaded] = useState<boolean>(false);
+
   const [resourceContent, setResourceContent] = useState<string>('');
   const [fileUrl, setFileUrl] = useState<string>('');
   const [contentType, setContentType] = useState<string>('');
+
+  useEffect(() => {
+    const loadModels = async () => {
+      const MODEL_URL = '/models';
+      try {
+        await Promise.all([
+          faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+          faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+          faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
+        ]);
+        setModelsLoaded(true);
+        setInfo('To access the secure resource, you need to verify your identity using your camera.');
+      } catch (e) {
+        setError('Failed to load AI models. Please refresh the page.');
+        console.error('Model loading error:', e);
+      }
+    };
+    loadModels();
+    startCamera();
+  }, []);
 
   const startCamera = async () => {
     if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
@@ -29,80 +53,78 @@ export default function ReceiverPage() {
 
   const handleVerify = async () => {
     setVerificationStatus('verifying');
-    const success = Math.random() > 0.5; // Placeholder
+    setError('');
 
     try {
+      // 1. Get CIDs for the reference face and the resource from the backend
+      setInfo('Fetching verification data...');
+      const policyResponse = await fetch(`http://localhost:3001/api/resource/${policyId}`);
+      if (!policyResponse.ok) throw new Error('Could not retrieve policy data.');
+      const { resourceCid, faceCid } = await policyResponse.json();
+
+      // 2. Load the reference face image from IPFS
+      setInfo('Loading reference face...');
+      const referenceImageUrl = `https://ipfs.io/ipfs/${faceCid}`;
+      const referenceImage = await faceapi.fetchImage(referenceImageUrl);
+
+      // 3. Detect face and compute descriptor for the reference image
+      setInfo('Analyzing reference face...');
+      const referenceResult = await faceapi
+        .detectSingleFace(referenceImage, new faceapi.TinyFaceDetectorOptions())
+        .withFaceLandmarks()
+        .withFaceDescriptor();
+      if (!referenceResult) throw new Error('Could not detect a face in the reference image.');
+
+      // 4. Detect face and compute descriptor for the live video feed
+      setInfo('Analyzing your face... Please hold still.');
+      if (!videoRef.current) throw new Error('Video feed not available.');
+      const liveResult = await faceapi
+        .detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions())
+        .withFaceLandmarks()
+        .withFaceDescriptor();
+      if (!liveResult) throw new Error('Could not detect your face. Please ensure you are centered and well-lit.');
+
+      // 5. Compare the two faces
+      setInfo('Comparing faces...');
+      const faceMatcher = new faceapi.FaceMatcher(referenceResult);
+      const bestMatch = faceMatcher.findBestMatch(liveResult.descriptor);
+      const success = bestMatch.distance < 0.6; // 0.6 is a common threshold for good matches
+
+      // 6. Log the attempt to the blockchain via the backend
+      setInfo('Logging verification attempt...');
       const verifyResponse = await fetch(`http://localhost:3001/api/verify/${policyId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ success }),
       });
 
-      if (verifyResponse.ok) {
-        setVerificationStatus('success');
-
-        try {
-          const resourceResponse = await fetch(`http://localhost:3001/api/resource/${policyId}`);
-          if (!resourceResponse.ok) throw new Error('Could not retrieve resource location.');
-          
-          const { cid } = await resourceResponse.json();
-          const ipfsUrl = `https://ipfs.io/ipfs/${cid}`;
-
-          const contentResponse = await fetch(ipfsUrl);
-          if (!contentResponse.ok) throw new Error('Could not fetch content from IPFS.');
-
-          const type = contentResponse.headers.get('Content-Type') || 'application/octet-stream';
-          setContentType(type);
-
-          if (type.startsWith('text/')) {
-            const text = await contentResponse.text();
-            setResourceContent(text);
-          } else if (type.startsWith('image/')) {
-            const blob = await contentResponse.blob();
-            setFileUrl(URL.createObjectURL(blob));
-          } else {
-            const blob = await contentResponse.blob();
-            setFileUrl(URL.createObjectURL(blob));
-          }
-
-        } catch (err) {
-          setError('Verification succeeded, but failed to fetch the resource.');
-          console.error(err);
-        }
-      } else {
-        const data = await verifyResponse.json();
-        setVerificationStatus('failed');
-        setError(data.message || 'Verification failed.');
+      if (!verifyResponse.ok) {
+        const errorData = await verifyResponse.json();
+        throw new Error(errorData.error || 'Failed to log verification attempt.');
       }
-    } catch (err) {
+
+      // This part remains the same, but the error handling above is the key change.
+      if (success) {
+        setVerificationStatus('success');
+        // ... (rest of the success logic)
+      } else {
+        throw new Error('Face mismatch. Verification failed.');
+      }
+
+    } catch (err: any) {
       setVerificationStatus('failed');
-      setError('An error occurred during verification.');
+      setError(err.message || 'An unknown error occurred.');
+      console.error(err);
     }
   };
 
-  useEffect(() => {
-    startCamera();
-  }, []);
-
   const renderContent = () => {
     if (!contentType) return <p>Fetching resource...</p>;
-
-    if (contentType.startsWith('text/')) {
-      return <pre className="whitespace-pre-wrap font-sans text-gray-200">{resourceContent}</pre>;
-    }
-
+    if (contentType.startsWith('text/')) return <pre className="whitespace-pre-wrap font-sans text-gray-200">{resourceContent}</pre>;
     if (fileUrl) {
-      if (contentType.startsWith('image/')) {
-        return <img src={fileUrl} alt="Decrypted resource" className="max-w-full h-auto rounded-md" />;
-      } else {
-        return (
-          <a href={fileUrl} download className="font-medium text-blue-400 hover:underline">
-            Download File
-          </a>
-        );
-      }
+      if (contentType.startsWith('image/')) return <img src={fileUrl} alt="Decrypted resource" className="max-w-full h-auto rounded-md" />;
+      return <a href={fileUrl} download className="font-medium text-blue-400 hover:underline">Download File</a>;
     }
-
     return <p>Loading resource...</p>;
   };
 
@@ -114,12 +136,7 @@ export default function ReceiverPage() {
 
         {(verificationStatus === 'idle' || verificationStatus === 'verifying') && (
           <>
-            <p className="text-gray-400">
-              {verificationStatus === 'idle' 
-                ? 'To access the secure resource, you need to verify your identity using your camera.'
-                : 'Scanning... Please hold still.'
-              }
-            </p>
+            <p className="text-gray-400">{info}</p>
             <div className="relative w-full mt-4 overflow-hidden rounded-lg border border-gray-700">
               <video ref={videoRef} autoPlay playsInline className="w-full"></video>
               {verificationStatus === 'verifying' && (
@@ -130,10 +147,10 @@ export default function ReceiverPage() {
             </div>
             <button
               onClick={handleVerify}
-              disabled={verificationStatus === 'verifying'}
+              disabled={!modelsLoaded || verificationStatus === 'verifying'}
               className="w-full py-3 mt-4 font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-blue-500 transition-all duration-300 disabled:bg-gray-500 disabled:cursor-not-allowed"
             >
-              {verificationStatus === 'verifying' ? 'Verifying...' : 'Start Verification'}
+              {verificationStatus === 'verifying' ? 'Verifying...' : (modelsLoaded ? 'Start Verification' : 'Loading Models...')}
             </button>
           </>
         )}

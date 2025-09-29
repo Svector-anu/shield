@@ -6,27 +6,21 @@ const router = Router();
 router.post('/:policyId', async (req: Request, res: Response) => {
   try {
     const { policyId } = req.params;
-    const { success } = req.body; // This will come from the face verification service
+    const { success } = req.body;
 
-    // First, check if the policy is valid
-    const isValid = await shieldContract.isPolicyValid(policyId);
-    if (!isValid) {
-      return res.status(400).json({ error: 'Policy is not valid' });
-    }
-
-    // Log the verification attempt
+    // The logAttempt function on the smart contract will handle all validity checks.
+    // This prevents race conditions and keeps the contract as the single source of truth.
     const tx = await shieldContract.logAttempt(policyId, success);
     await tx.wait();
 
-    if (success) {
-      // In a real application, this is where you would grant access to the resource
-      res.json({ success: true, message: 'Verification successful' });
-    } else {
-      res.status(401).json({ success: false, message: 'Verification failed' });
-    }
-  } catch (error) {
+    // If the transaction was successful, it means the log was recorded.
+    res.json({ success: true, message: 'Verification attempt logged.' });
+
+  } catch (error: any) {
     console.error(error);
-    res.status(500).json({ error: 'Failed to process verification' });
+    // The error from ethers likely contains a specific revert reason from the smart contract.
+    const reason = error.reason || 'Failed to process verification';
+    res.status(500).json({ error: reason });
   }
 });
 

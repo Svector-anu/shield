@@ -14,7 +14,7 @@ const ipfs = create({ url: 'http://127.0.0.1:5001' });
 
 // In-memory store for PolicyID -> IPFS CID mapping. 
 // NOTE: This is for demonstration only. In a real app, you'd use a persistent database.
-export const policyStore = new Map<string, string>();
+export const policyStore = new Map<string, { resourceCid: string; faceCid: string; }>();
 export { ipfs };
 // --------------------------------
 

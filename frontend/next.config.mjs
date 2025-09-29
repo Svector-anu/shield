@@ -8,6 +8,17 @@ const nextConfig = {
       },
     ];
   },
+  webpack: (config, { isServer }) => {
+    if (!isServer) {
+      // Fixes npm packages that depend on `fs` module
+      config.resolve.fallback = {
+        fs: false,
+        encoding: false,
+      };
+    }
+
+    return config;
+  },
 };
 
 export default nextConfig;
