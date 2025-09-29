@@ -21,24 +21,25 @@ export default function SenderForm() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: Implement steps 1-3 and 5
-    // 1. Encrypt the file client-side
-    // 2. Upload the encrypted file to IPFS/Arweave
-    // 3. For each recipient image, get a face template from AWS Rekognition
-    // 5. Generate the secure link
+    if (!file) {
+      alert('Please select a file to share.');
+      return;
+    }
+
+    // TODO: Implement client-side encryption before uploading
 
     try {
-            const response = await fetch('http://localhost:3001/api/policy', {
+      const formData = new FormData();
+      formData.append('resource', file);
+      formData.append('expiry', (Math.floor(Date.now() / 1000) + expiry).toString());
+      formData.append('maxAttempts', maxAttempts.toString());
+
+      const response = await fetch('http://localhost:3001/api/policy', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          expiry: Math.floor(Date.now() / 1000) + expiry, // Send expiry timestamp
-          maxAttempts,
-        }),
+        // NOTE: Do not set Content-Type header. The browser will set it automatically for FormData.
+        body: formData,
       });
 
       if (!response.ok) {
@@ -50,7 +51,7 @@ export default function SenderForm() {
       setSecureLink(link);
     } catch (error) {
       console.error(error);
-      // TODO: Display error to the user
+      alert('An error occurred. Please check the console.');
     }
   };
 
