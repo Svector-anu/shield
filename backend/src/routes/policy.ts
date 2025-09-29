@@ -1,52 +1,46 @@
 import { Router, Request, Response } from 'express';
 import { ethers } from 'ethers';
 import multer from 'multer';
-import { ipfs, policyStore } from '../index';
-import shieldContract from '../services/shield';
+import { ipfs, db } from '../index.js';
+import shieldContract from '../services/shield.js';
 
 const router = Router();
 
-// Configure multer for in-memory file storage
+// Configure multer for in-memory file storage for the encrypted resource
 const upload = multer({ storage: multer.memoryStorage() });
 
-// Define the fields for multer to process
-const uploadFields = upload.fields([
-  { name: 'resource', maxCount: 1 },
-  { name: 'recipientFace', maxCount: 1 },
-]);
-
-router.post('/', uploadFields, async (req: Request, res: Response) => {
+router.post('/', upload.single('resource'), async (req: Request, res: Response) => {
   try {
-    // Check if files were uploaded
-    if (!req.files || !('resource' in req.files) || !('recipientFace' in req.files)) {
-      return res.status(400).json({ error: 'Both a resource file and a recipient face image are required.' });
+    if (!req.file) {
+      return res.status(400).json({ error: 'An encrypted resource file is required.' });
     }
 
-    const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+    const { expiry, maxAttempts, secretKey, recipientFaceDescriptor } = req.body;
 
-    // Add both files to IPFS in parallel for efficiency
+    if (!secretKey || !recipientFaceDescriptor) {
+      return res.status(400).json({ error: 'A secret key and recipient face descriptor are required.' });
+    }
+
+    // Add the encrypted resource and the face descriptor to IPFS in parallel
     const [resourceResult, faceResult] = await Promise.all([
-      ipfs.add(files.resource[0].buffer),
-      ipfs.add(files.recipientFace[0].buffer),
+      ipfs.add(req.file.buffer),
+      ipfs.add(Buffer.from(recipientFaceDescriptor)),
     ]);
 
     const resourceCid = resourceResult.cid.toString();
-    const faceCid = faceResult.cid.toString();
+    const faceCid = faceResult.cid.toString(); // This is now the CID of the descriptor string
 
-    // Get policy details from the request body
-    const { expiry, maxAttempts } = req.body;
-
-    // Create the policy on the blockchain
     const policyId = ethers.randomBytes(32);
     const tx = await shieldContract.createPolicy(policyId, expiry, maxAttempts);
     await tx.wait();
 
     const policyIdHex = ethers.hexlify(policyId);
+    const cleanPolicyId = policyIdHex.startsWith('0x') ? policyIdHex.substring(2) : policyIdHex;
     
-    // Store both CIDs against the policyId
-    policyStore.set(policyIdHex.substring(2), { resourceCid, faceCid });
+    // Write to the persistent database
+    db.data.policies[cleanPolicyId] = { resourceCid, faceCid, secretKey };
+    await db.write();
 
-    // Return the policyId to the frontend
     res.json({ policyId: policyIdHex });
 
   } catch (error) {
@@ -56,3 +50,4 @@ router.post('/', uploadFields, async (req: Request, res: Response) => {
 });
 
 export default router;
+

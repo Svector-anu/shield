@@ -1,20 +1,32 @@
 import { Router, Request, Response } from 'express';
-import { policyStore } from '../index';
+import { db } from '../index.js';
+import shieldContract from '../services/shield.js';
 
 const router = Router();
 
-router.get('/:policyId', (req: Request, res: Response) => {
-  const { policyId } = req.params;
-  // The policyId from the URL might be hex (0x...), but we store it as plain hex.
-  const cleanPolicyId = policyId.startsWith('0x') ? policyId.substring(2) : policyId;
+router.get('/:policyId', async (req: Request, res: Response) => {
+  try {
+    const { policyId } = req.params;
+    const cleanPolicyId = policyId.startsWith('0x') ? policyId.substring(2) : policyId;
 
-  const cids = policyStore.get(cleanPolicyId);
+    const policyData = db.data.policies[cleanPolicyId];
 
-  if (cids) {
-    res.json(cids); // Returns { resourceCid, faceCid }
-  } else {
-    res.status(404).json({ error: 'Resource not found for this policy.' });
+    if (policyData && policyData.faceCid) {
+      // Check the contract for the current validity of the policy
+      const isValid = await shieldContract.isPolicyValid(policyId);
+
+      res.json({ 
+        faceCid: policyData.faceCid,
+        isValid: isValid 
+      });
+    } else {
+      res.status(404).json({ error: 'Policy not found or face CID missing.' });
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to retrieve policy status.' });
   }
 });
 
 export default router;
+
