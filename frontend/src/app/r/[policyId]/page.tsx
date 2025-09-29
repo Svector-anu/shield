@@ -34,20 +34,55 @@ export default function ReceiverPage() {
         ]);
         setModelsLoaded(true);
 
-        setInfo('Checking policy status...');
-        const policyResponse = await fetch(`http://localhost:3001/api/resource/${policyId}`);
-        if (!policyResponse.ok) {
-          throw new Error('Could not retrieve policy data. The link may be invalid.');
-        }
-        const { faceCid, isValid } = await policyResponse.json();
+import { db } from '@/lib/firebase';
+import { doc, getDoc } from 'firebase/firestore';
 
-        if (!isValid) {
+// ... (imports and component setup remain the same)
+
+  // Load models and initial policy status on mount
+  useEffect(() => {
+    const loadInitialData = async () => {
+      const MODEL_URL = '/models';
+      try {
+        setInfo('Loading AI models...');
+        await Promise.all([
+          faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
+          faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+          faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
+        ]);
+        setModelsLoaded(true);
+
+        setInfo('Checking policy status...');
+        const policyRef = doc(db, 'policies', policyId);
+        const policySnap = await getDoc(policyRef);
+
+        if (!policySnap.exists()) {
+          throw new Error('Policy not found. The link may be invalid.');
+        }
+        
+        const policyData = policySnap.data();
+        
+        // TODO: We are not checking against the smart contract yet.
+        const isStillValid = policyData.valid; 
+
+        if (!isStillValid) {
           setVerificationStatus('invalid');
           setError('This link has expired or the maximum attempts have been reached.');
         } else {
-          setFaceCid(faceCid);
+          // TODO: This will change back to faceCid once IPFS is re-integrated
+          setFaceDescriptorForVerification(new Float32Array(JSON.parse(policyData.faceDescriptor)));
           setInfo('Please position your face in the frame.');
         }
+      } catch (e: any) {
+        setVerificationStatus('invalid');
+        setError(e.message || 'An error occurred while loading.');
+        console.error('Initial loading error:', e);
+      }
+    };
+    loadInitialData();
+  }, [policyId]);
+
+// ... (rest of the component remains the same, but will need further refactoring)
       } catch (e: any) {
         setVerificationStatus('invalid');
         setError(e.message || 'An error occurred while loading.');

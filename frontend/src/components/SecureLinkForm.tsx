@@ -115,28 +115,63 @@ const SecureLinkForm = () => {
       const encryptedData = CryptoJS.AES.encrypt(dataToEncrypt, secretKey).toString();
       const encryptedBlob = new Blob([encryptedData], { type: 'text/plain' });
 
-      const formData = new FormData();
-      formData.append('resource', encryptedBlob, `encrypted_${originalFileName}`);
-      // Convert descriptor to a string for transport
-      formData.append('recipientFaceDescriptor', JSON.stringify(Array.from(faceDescriptor)));
-      const absoluteExpiry = Math.floor(Date.now() / 1000) + expiry;
-      formData.append('expiry', absoluteExpiry.toString());
-      formData.append('maxAttempts', maxAttempts.toString());
-      formData.append('secretKey', secretKey);
+import { db } from '@/lib/firebase';
+import { doc, setDoc } from 'firebase/firestore';
+import toast from 'react-hot-toast';
 
-      const response = await fetch('http://localhost:3001/api/policy', {
-        method: 'POST',
-        body: formData,
+// ... (imports and component setup remain the same)
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    setFeedbackMessage('');
+
+    // ... (validation and encryption logic remain the same)
+
+    if (!faceDescriptor) {
+      toast.error('Please provide a recipient face and wait for it to be processed.');
+      setIsSubmitting(false);
+      return;
+    }
+
+    try {
+      const secretKey = CryptoJS.lib.WordArray.random(32).toString(CryptoJS.enc.Hex);
+      const encryptedData = CryptoJS.AES.encrypt(dataToEncrypt, secretKey).toString();
+      
+      // The resource is now just the encrypted string, not a blob
+      const resource = encryptedData;
+      const faceDescriptorString = JSON.stringify(Array.from(faceDescriptor));
+
+      // Generate a unique ID for the policy document
+      const policyId = doc(collection(db, 'policies')).id;
+
+      // TODO: Still need to upload resource and descriptor to IPFS
+      // For now, we will store them directly in Firestore to prove the connection.
+      // This is a temporary step and is NOT the final architecture.
+      
+      // Create the policy document in Firestore
+      await setDoc(doc(db, 'policies', policyId), {
+        resource: resource, // TEMPORARY
+        faceDescriptor: faceDescriptorString, // TEMPORARY
+        secretKey: secretKey,
+        expiry: Math.floor(Date.now() / 1000) + expiry,
+        maxAttempts: maxAttempts,
+        attempts: 0,
+        valid: true,
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to create policy');
-      }
-
-      const { policyId } = await response.json();
       const link = `${window.location.origin}/r/${policyId}`;
       setSecureLink(link);
       toast.success('Secure link generated successfully!');
+    } catch (error) {
+      console.error(error);
+      toast.error('An error occurred. Please check the console.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+// ... (rest of the component remains the same)
     } catch (error) {
       console.error(error);
       toast.error('An error occurred. Please check the console.');

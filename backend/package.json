@@ -16,10 +16,13 @@
   "dependencies": {
     "@types/cors": "^2.8.19",
     "@types/multer": "^2.0.0",
+    "axios": "^1.12.2",
     "cors": "^2.8.5",
     "dotenv": "^17.2.2",
     "ethers": "^6.15.0",
     "express": "^5.1.0",
+    "firebase-admin": "^13.5.0",
+    "firebase-functions": "^6.4.0",
     "ipfs-http-client": "^56.0.3",
     "lowdb": "^7.0.1",
     "multer": "^2.0.2"
