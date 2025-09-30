@@ -16,7 +16,7 @@ import { QueryClientProvider, QueryClient } from "@tanstack/react-query";
 
 const config = getDefaultConfig({
   appName: 'Shield',
-  projectId: '35d3ceff2447d9d9f3ff981cb0f47ca6', // Replace with your WalletConnect Project ID
+  projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || '', // Replace with your WalletConnect Project ID
   chains: [
     mainnet, 
     polygon, 
