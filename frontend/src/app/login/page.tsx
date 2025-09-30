@@ -1,15 +1,18 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signInWithPopup,
   GoogleAuthProvider,
   GithubAuthProvider,
+  onAuthStateChanged,
   User,
 } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+import { auth, db } from '@/lib/firebase';
+import { doc, getDoc } from 'firebase/firestore';
 import styles from './Login.module.css';
 import Pattern from '@/components/Pattern';
 import GoogleIcon from '@/components/GoogleIcon';
@@ -22,50 +25,59 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
   const [isSignUp, setIsSignUp] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const router = useRouter();
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        const userDocRef = doc(db, 'users', user.uid);
+        const userDocSnap = await getDoc(userDocRef);
+
+        if (userDocSnap.exists() && userDocSnap.data().onboardingCompleted) {
+          router.push('/');
+        } else {
+          router.push('/profile');
+        }
+      } else {
+        setLoading(false);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [router]);
 
   const handleAuthAction = async () => {
     setError(null);
+    setLoading(true);
     try {
       const authFn = isSignUp ? createUserWithEmailAndPassword : signInWithEmailAndPassword;
-      const userCredential = await authFn(auth, email, password);
-      setUser(userCredential.user);
+      await authFn(auth, email, password);
+      // The onAuthStateChanged listener will handle the redirect
     } catch (error: any) {
       setError(error.message);
+      setLoading(false);
     }
   };
 
   const handleSocialSignIn = async (provider: GoogleAuthProvider | GithubAuthProvider) => {
     setError(null);
+    setLoading(true);
     try {
-      const result = await signInWithPopup(auth, provider);
-      setUser(result.user);
+      await signInWithPopup(auth, provider);
+      // The onAuthStateChanged listener will handle the redirect
     } catch (error: any) {
       setError(error.message);
+      setLoading(false);
     }
   };
 
-  const handleSignOut = async () => {
-    try {
-      await auth.signOut();
-      setUser(null);
-    } catch (error: any) {
-      setError(error.message);
-    }
-  };
-
-  if (user) {
+  if (loading) {
     return (
       <main className={styles.container}>
-        <Pattern />
-        <div className={styles.form}>
-          <h1 className={styles.title}>Welcome, {user.displayName || user.email}</h1>
-          <button onClick={handleSignOut} className={styles.button}>
-            Sign Out
-          </button>
-        </div>
+        <p>Loading...</p>
       </main>
     );
   }
