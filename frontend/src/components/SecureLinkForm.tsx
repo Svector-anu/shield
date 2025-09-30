@@ -5,10 +5,21 @@ import styled from 'styled-components';
 import CryptoJS from 'crypto-js';
 import * as faceapi from 'face-api.js';
 import toast from 'react-hot-toast';
+import { useAuthState } from 'react-firebase-hooks/auth';
+import { auth, db, app } from '@/lib/firebase';
+import { getFunctions, httpsCallable } from 'firebase/functions';
+import { doc, setDoc } from 'firebase/firestore';
+import { useAccount, useWriteContract } from 'wagmi';
+import { ethers } from 'ethers';
+import ShieldABI from '@/lib/Shield.json';
 
 type ShareMode = 'file' | 'text';
 
 const SecureLinkForm = () => {
+  const [user] = useAuthState(auth);
+  const { address } = useAccount();
+  const { data: hash, writeContract, isPending, isSuccess, isError, error } = useWriteContract();
+
   const [shareMode, setShareMode] = useState<ShareMode>('file');
   const [file, setFile] = useState<File | null>(null);
   const [textContent, setTextContent] = useState<string>('');
@@ -20,6 +31,16 @@ const SecureLinkForm = () => {
   const [modelsLoaded, setModelsLoaded] = useState<boolean>(false);
   const [faceDescriptor, setFaceDescriptor] = useState<Float32Array | null>(null);
   const [feedbackMessage, setFeedbackMessage] = useState<string>('');
+
+  useEffect(() => {
+    if (isSuccess) {
+      toast.success('Policy created on-chain successfully!');
+    }
+    if (isError) {
+      console.error("Transaction Error:", error);
+      toast.error(`On-chain transaction failed: ${error?.message || 'Unknown error'}`);
+    }
+  }, [isSuccess, isError, error]);
 
   useEffect(() => {
     const loadModels = async () => {
@@ -76,11 +97,27 @@ const SecureLinkForm = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!user) {
+      toast.error('You must be logged in to create a link.');
+      return;
+    }
+    if (!address) {
+        toast.error('Please connect your wallet first.');
+        return;
+    }
+
+    const contractAddress = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS;
+    if (!contractAddress || !ethers.isAddress(contractAddress)) {
+      toast.error("Invalid or missing contract address. Please check your .env.local file.");
+      setIsSubmitting(false);
+      return;
+    }
+
     setIsSubmitting(true);
     setFeedbackMessage('');
 
-    let dataToEncrypt: string;
-    let originalFileName = 'shared_content.txt';
+    let dataToEncrypt: CryptoJS.lib.WordArray;
+    let mimeType: string = 'text/plain';
 
     if (shareMode === 'file') {
       if (!file) {
@@ -88,20 +125,16 @@ const SecureLinkForm = () => {
         setIsSubmitting(false);
         return;
       }
-      originalFileName = file.name;
-      dataToEncrypt = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = (event) => resolve(event.target?.result as string);
-        reader.onerror = (error) => reject(error);
-        reader.readAsDataURL(file);
-      });
+      mimeType = file.type;
+      const arrayBuffer = await file.arrayBuffer();
+      dataToEncrypt = CryptoJS.lib.WordArray.create(arrayBuffer);
     } else {
       if (textContent.trim() === '') {
         toast.error('Please enter some text to share.');
         setIsSubmitting(false);
         return;
       }
-      dataToEncrypt = `data:text/plain;base64,${btoa(textContent)}`;
+      dataToEncrypt = CryptoJS.enc.Utf8.parse(textContent);
     }
 
     if (!faceDescriptor) {
@@ -112,66 +145,55 @@ const SecureLinkForm = () => {
 
     try {
       const secretKey = CryptoJS.lib.WordArray.random(32).toString(CryptoJS.enc.Hex);
-      const encryptedData = CryptoJS.AES.encrypt(dataToEncrypt, secretKey).toString();
-      const encryptedBlob = new Blob([encryptedData], { type: 'text/plain' });
-
-import { db, app } from '@/lib/firebase';
-import { getFunctions, httpsCallable } from 'firebase/functions';
-import { doc, setDoc, collection } from 'firebase/firestore';
-import toast from 'react-hot-toast';
-
-// ... (imports and component setup remain the same)
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-    setFeedbackMessage('');
-
-    // ... (validation and encryption logic remain the same)
-
-    if (!faceDescriptor) {
-      toast.error('Please provide a recipient face and wait for it to be processed.');
-      setIsSubmitting(false);
-      return;
-    }
-
-    try {
-      const secretKey = CryptoJS.lib.WordArray.random(32).toString(CryptoJS.enc.Hex);
-      const encryptedData = CryptoJS.AES.encrypt(dataToEncrypt, secretKey).toString();
+      const encrypted = CryptoJS.AES.encrypt(dataToEncrypt, secretKey);
+      const encryptedDataString = encrypted.toString();
+      
       const faceDescriptorString = JSON.stringify(Array.from(faceDescriptor));
 
-      // Get a reference to the cloud function
       const functions = getFunctions(app);
       const uploadToIpfs = httpsCallable(functions, 'uploadToIpfs');
 
-      // Upload both the resource and the descriptor to IPFS via our function
       setFeedbackMessage('Uploading to secure storage...');
       const [resourceResult, descriptorResult] = await Promise.all([
-        uploadToIpfs({ data: encryptedData, type: 'string' }),
+        uploadToIpfs({ data: encryptedDataString, type: 'string' }),
         uploadToIpfs({ data: faceDescriptorString, type: 'json' }),
       ]);
 
-      const resourceCid = resourceResult.data.cid;
-      const faceCid = descriptorResult.data.cid;
+      const resourceCid = (resourceResult.data as { cid: string }).cid;
+      const faceCid = (descriptorResult.data as { cid: string }).cid;
 
       if (!resourceCid || !faceCid) {
         throw new Error('Failed to get CIDs from IPFS upload.');
       }
 
-      // Now, create the policy document in Firestore with the CIDs
+      setFeedbackMessage('Please confirm the transaction in your wallet...');
+      
+      const policyId = ethers.hexlify(ethers.randomBytes(32));
+      const expiryTimestamp = Math.floor(Date.now() / 1000) + expiry;
+
+      writeContract({
+        address: contractAddress as `0x${string}`,
+        abi: ShieldABI.abi,
+        functionName: 'createPolicy',
+        args: [policyId, expiryTimestamp, maxAttempts],
+      });
+      
       setFeedbackMessage('Creating secure link...');
-      const policyId = doc(collection(db, 'policies')).id;
-      await setDoc(doc(db, 'policies', policyId), {
+      
+      await setDoc(doc(db, 'policies', ethers.hexlify(policyId)), {
+        creatorId: user.uid,
         resourceCid: resourceCid,
         faceCid: faceCid,
         secretKey: secretKey,
-        expiry: Math.floor(Date.now() / 1000) + expiry,
+        mimeType: mimeType,
+        isText: shareMode === 'text',
+        expiry: expiryTimestamp,
         maxAttempts: maxAttempts,
         attempts: 0,
         valid: true,
       });
 
-      const link = `${window.location.origin}/r/${policyId}`;
+      const link = `${window.location.origin}/r/${ethers.hexlify(policyId)}`;
       setSecureLink(link);
       toast.success('Secure link generated successfully!');
       setFeedbackMessage('');
@@ -184,16 +206,7 @@ import toast from 'react-hot-toast';
       setIsSubmitting(false);
     }
   };
-
-// ... (rest of the component remains the same)
-    } catch (error) {
-      console.error(error);
-      toast.error('An error occurred. Please check the console.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
+  
   const handleCopy = () => {
     navigator.clipboard.writeText(secureLink).then(() => {
       toast.success('Link copied to clipboard!');
@@ -243,8 +256,8 @@ import toast from 'react-hot-toast';
           </label>
         </div>  
         
-        <button className="submit" type="submit" disabled={isSubmitting || !faceDescriptor}>
-          {isSubmitting ? 'Generating...' : 'Generate Link'}
+        <button className="submit" type="submit" disabled={isSubmitting || !faceDescriptor || !user}>
+          {isSubmitting ? 'Generating...' : (user ? 'Generate Link' : 'Sign in to Generate Link')}
         </button>
 
         {secureLink && (
@@ -265,9 +278,9 @@ const StyledWrapper = styled.div`
   .form {
     display: flex;
     flex-direction: column;
-    gap: 25px; /* Increased gap */
-    max-width: 550px; /* Increased width */
-    padding: 40px; /* Increased padding */
+    gap: 25px;
+    max-width: 550px;
+    padding: 40px;
     border-radius: 20px;
     position: relative;
     background-color: transparent;
@@ -278,20 +291,20 @@ const StyledWrapper = styled.div`
 
   .feedback-message {
     font-size: 14px;
-    color: #00bfff;
+    color: #00ff00;
     margin-top: 10px;
     text-align: center;
   }
 
   .title {
-    font-size: 32px; /* Increased font size */
+    font-size: 32px;
     font-weight: 600;
     letter-spacing: -1px;
     position: relative;
     display: flex;
     align-items: center;
     padding-left: 30px;
-    color: #00bfff;
+    color: #00ff00;
   }
 
   .title::before { width: 18px; height: 18px; }
@@ -303,11 +316,11 @@ const StyledWrapper = styled.div`
     width: 16px;
     border-radius: 50%;
     left: 0px;
-    background-color: #00bfff;
+    background-color: #00ff00;
   }
 
-  .message { font-size: 15px; color: rgba(255, 255, 255, 0.7); } /* Increased font size */
-  .flex { display: flex; width: 100%; gap: 15px; } /* Increased gap */
+  .message { font-size: 15px; color: rgba(255, 255, 255, 0.7); }
+  .flex { display: flex; width: 100%; gap: 15px; }
   .form label { position: relative; }
 
   .form label .input {
@@ -327,7 +340,7 @@ const StyledWrapper = styled.div`
     resize: none;
   }
 
-  .file-label span { color: #00bfff; font-size: 0.75em; font-weight: 600; margin-bottom: 5px; display: block; } /* Increased font size */
+  .file-label span { color: #00ff00; font-size: 0.75em; font-weight: 600; margin-bottom: 5px; display: block; }
   .file-label .input { padding: 10px; }
 
   .form label .input + span {
@@ -335,13 +348,13 @@ const StyledWrapper = styled.div`
     position: absolute;
     left: 10px;
     top: 15px;
-    font-size: 1em; /* Increased font size */
+    font-size: 1em;
     cursor: text;
     transition: 0.3s ease;
   }
 
-  .form label .input:placeholder-shown + span { top: 15px; font-size: 1em; } /* Increased font size */
-  .form label .input:focus + span, .form label .input:valid + span { color: #00bfff; top: 4px; font-size: 0.75em; font-weight: 600; } /* Increased font size */
+  .form label .input:placeholder-shown + span { top: 15px; font-size: 1em; }
+  .form label .input:focus + span, .form label .input:valid + span { color: #00ff00; top: 4px; font-size: 0.75em; font-weight: 600; }
 
   .input { font-size: medium; }
 
@@ -353,14 +366,20 @@ const StyledWrapper = styled.div`
     color: #fff; 
     font-size: 16px; 
     transform: .3s ease; 
-    background-image: linear-gradient(45deg, #00bfff, #1e90ff);
-    box-shadow: 0 0 15px rgba(0, 191, 255, 0.4);
+    background-image: linear-gradient(45deg, #00ff00, #008000);
+    box-shadow: 0 0 15px rgba(0, 255, 0, 0.4);
     font-weight: bold; 
     transition: all 0.3s ease;
   }
   .submit:hover { 
     transform: scale(1.05);
-    box-shadow: 0 0 25px rgba(0, 191, 255, 0.7);
+    box-shadow: 0 0 25px rgba(0, 255, 0, 0.7);
+  }
+  .submit:disabled {
+    background-image: linear-gradient(45deg, #4b5563, #6b7280);
+    box-shadow: none;
+    cursor: not-allowed;
+    transform: scale(1);
   }
   
   .secureLinkContainer {
@@ -368,7 +387,7 @@ const StyledWrapper = styled.div`
   }
 
   .secureLinkTitle {
-    color: #00bfff;
+    color: #00ff00;
     font-size: 0.75em;
     font-weight: 600;
     margin-bottom: 5px;
@@ -400,13 +419,13 @@ const StyledWrapper = styled.div`
     border-radius: 10px;
     color: #fff;
     font-size: 14px;
-    background-color: rgba(0, 191, 255, 0.5);
+    background-color: rgba(0, 255, 0, 0.5);
     cursor: pointer;
     transition: background-color 0.3s ease;
   }
 
   .link-wrapper button:hover {
-    background-color: rgba(0, 191, 255, 0.8);
+    background-color: rgba(0, 255, 0, 0.8);
   }
 
   .toggle-container {
@@ -431,12 +450,27 @@ const StyledWrapper = styled.div`
     transition: background-color 0.3s ease;
   }
   .toggle-container button.active {
-    background-color: #00bfff;
+    background-color: #00ff00;
     color: #fff;
-    box-shadow: 0 0 10px rgba(0, 191, 255, 0.5);
+    box-shadow: 0 0 10px rgba(0, 255, 0, 0.5);
   }
 
   @keyframes pulse { from { transform: scale(0.9); opacity: 1; } to { transform: scale(1.8); opacity: 0; } }
+
+  @media (max-width: 768px) {
+    .form {
+      padding: 20px;
+    }
+
+    .title {
+      font-size: 24px;
+      padding-left: 20px;
+    }
+
+    .flex {
+      flex-direction: column;
+    }
+  }
 `;
 
 export default SecureLinkForm;

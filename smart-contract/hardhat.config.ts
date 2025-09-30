@@ -1,5 +1,6 @@
 import { HardhatUserConfig } from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
+import "@nomicfoundation/hardhat-toolbox";
 import "dotenv/config";
 
 const config: HardhatUserConfig = {
@@ -9,6 +10,13 @@ const config: HardhatUserConfig = {
       url: process.env.BASE_SEPOLIA_RPC_URL || "",
       accounts: [process.env.PRIVATE_KEY || ""],
     },
+    baseMainnet: {
+      url: "https://base-mainnet.g.alchemy.com/v2/1rH8dhkFuS0-xg2SvpuKib39RtL3Bb_S", // PASTE YOUR RPC URL HERE
+      accounts: [process.env.PRIVATE_KEY || ""],
+    },
+  },
+  etherscan: {
+    apiKey: "QD4WG9T6EN1YXNCB2CGUFXRC9BCC79YHSX", // PASTE YOUR ETHERSCAN API KEY HERE
   },
 };
 

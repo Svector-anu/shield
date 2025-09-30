@@ -9,21 +9,20 @@
 
 .formGroup {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-start;
   margin-bottom: 20px;
 }
 
 .label {
-  width: 150px;
-  min-width: 150px;
-  margin-right: 20px;
+  margin-bottom: 5px;
   color: #333;
   font-weight: 500;
 }
 
 .input,
 .fileInput {
-  width: 300px;
+  width: 100%;
   padding: 10px;
   border: 1px solid #ccc;
   border-radius: 4px;
@@ -36,7 +35,7 @@
 }
 
 .submitButton {
-  background-color: #007bff;
+  background-color: #008000;
   color: white;
   border: none;
   padding: 12px 20px;
@@ -50,7 +49,7 @@
 }
 
 .submitButton:hover {
-  background-color: #0056b3;
+  background-color: #006400;
 }
 
 .secureLinkContainer {
@@ -65,4 +64,26 @@
   background-color: #f8f9fa;
   color: #333;
   margin-top: 5px;
+}
+
+@media (max-width: 768px) {
+  .formContainer {
+    padding: 20px;
+  }
+
+  .formGroup {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .label {
+    width: 100%;
+    margin-right: 0;
+    margin-bottom: 10px;
+  }
+
+  .input,
+  .fileInput {
+    width: 100%;
+  }
 }
