@@ -16,7 +16,7 @@ const config: HardhatUserConfig = {
     },
   },
   etherscan: {
-    apiKey: "QD4WG9T6EN1YXNCB2CGUFXRC9BCC79YHSX", // PASTE YOUR ETHERSCAN API KEY HERE
+    apiKey: process.env.ETHERSCAN_API_KEY || "", // PASTE YOUR ETHERSCAN API KEY HERE
   },
 };
 

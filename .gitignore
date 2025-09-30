@@ -27,3 +27,6 @@ yarn-error.log*
 
 # Cache
 .cache/
+
+# Roadmap
+/ROADMAP.md
