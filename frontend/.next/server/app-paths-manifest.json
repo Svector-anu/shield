@@ -1,5 +1,4 @@
 {
-  "/page": "app/page.js",
-  "/r/[policyId]/page": "app/r/[policyId]/page.js",
-  "/profile/page": "app/profile/page.js"
+  "/login/page": "app/login/page.js",
+  "/page": "app/page.js"
 }

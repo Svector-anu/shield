@@ -27,7 +27,9 @@ export default function Navbar() {
       <div className={`${styles.links} ${isMenuOpen ? styles.active : ''}`}>
         {user ? (
           <>
-            <ConnectButton />
+            <div className="connect-wallet-button-selector">
+              <ConnectButton />
+            </div>
             <UserMenu />
           </>
         ) : (

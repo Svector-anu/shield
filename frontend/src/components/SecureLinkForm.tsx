@@ -218,7 +218,7 @@ const SecureLinkForm = () => {
 
   return (
     <StyledWrapper>
-      <form className="form" onSubmit={handleSubmit}>
+      <form className="form secure-link-form-selector" onSubmit={handleSubmit}>
         <p className="title">Create a Secure Link</p>
         <p className="message">Upload a resource and define the terms for access.</p>
         
@@ -239,13 +239,13 @@ const SecureLinkForm = () => {
           </label>
         )}
 
-        <label className="file-label">
+        <label className="file-label recipient-face-selector">
           <span>Recipient Face</span>
           <input className="input" type="file" accept="image/*" onChange={handleRecipientImagesChange} required disabled={!modelsLoaded} />
           {feedbackMessage && <p className="feedback-message">{feedbackMessage}</p>}
         </label>
 
-        <div className="flex">
+        <div className="flex access-rules-selector">
           <label>
             <input className="input" type="number" value={expiry} onChange={(e) => setExpiry(Number(e.target.value))} placeholder=" " required />
             <span>Time Limit (seconds)</span>
@@ -256,7 +256,7 @@ const SecureLinkForm = () => {
           </label>
         </div>  
         
-        <button className="submit" type="submit" disabled={isSubmitting || !faceDescriptor || !user}>
+        <button className="submit generate-link-button-selector" type="submit" disabled={isSubmitting || !faceDescriptor || !user}>
           {isSubmitting ? 'Generating...' : (user ? 'Generate Link' : 'Sign in to Generate Link')}
         </button>
 
