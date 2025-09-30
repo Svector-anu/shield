@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -127,7 +128,7 @@ export default function LoginPage() {
               <input type="checkbox" />
               Remember me
             </label>
-            <a href="#" className={styles.forgotLink}>Forgot password?</a>
+            <Link href="/forgot-password" className={styles.forgotLink}>Forgot password?</Link>
           </div>
         )}
 
