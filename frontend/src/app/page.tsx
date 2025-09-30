@@ -2,25 +2,34 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import SecureLinkForm from "@/components/SecureLinkForm";
 import Pattern from "@/components/Pattern";
-import AppTour from '@/components/AppTour';
+
+// Dynamically import AppTour with SSR disabled
+const AppTour = dynamic(() => import('@/components/AppTour'), { ssr: false });
 
 function HomePageContent() {
   const [runTour, setRunTour] = useState(false);
+  const [isClient, setIsClient] = useState(false);
   const searchParams = useSearchParams();
   const router = useRouter();
 
+  // Ensure this component only renders on the client side
   useEffect(() => {
-    if (searchParams.get('tour') === 'true') {
+    setIsClient(true);
+  }, []);
+
+  useEffect(() => {
+    if (isClient && searchParams.get('tour') === 'true') {
       setRunTour(true);
     }
-  }, [searchParams]);
+  }, [isClient, searchParams]);
 
   const handleTourComplete = () => {
     setRunTour(false);
-    // Remove the query param from the URL
-    router.replace('/', undefined);
+    // Remove the query param from the URL without reloading the page
+    router.replace('/', { scroll: false });
   };
 
   return (
@@ -31,7 +40,8 @@ function HomePageContent() {
           <SecureLinkForm />
         </div>
       </main>
-      <AppTour run={runTour} onTourComplete={handleTourComplete} />
+      {/* Only render the tour on the client to prevent hydration errors */}
+      {isClient && <AppTour run={runTour} onTourComplete={handleTourComplete} />}
     </>
   );
 }
