@@ -10,6 +10,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { useAccount, useReadContract, useWriteContract } from 'wagmi';
 import ShieldABI from '@/lib/Shield.json';
 import { toast } from 'react-hot-toast';
+import styles from './ReceiverPage.module.css';
 
 const FaceVerification = dynamic(() => import('@/components/FaceVerification'), { ssr: false });
 
@@ -204,12 +205,12 @@ export default function ReceiverPage() {
       case 'idle':
         return (
           <div>
-            <p className="text-gray-400 mb-4">{info}</p>
+            <p className={styles.info}>{info}</p>
             <FaceVerification onVerificationResult={setLiveDescriptor} setInfo={setInfo} />
             <button
               onClick={handleVerify}
               disabled={!liveDescriptor}
-              className="mt-4 px-6 py-2 font-semibold text-white bg-green-600 rounded-md hover:bg-green-700 disabled:bg-gray-500"
+              className={styles.button}
             >
               Verify My Identity
             </button>
@@ -218,27 +219,25 @@ export default function ReceiverPage() {
       case 'verifying':
         return (
           <div>
-            <p className="text-lg text-green-400">{info || 'Verifying your identity...'}</p>
-            <div className="mt-4">
-              <div className="w-16 h-16 border-4 border-dashed rounded-full animate-spin border-green-500 mx-auto"></div>
-            </div>
+            <p className={styles.success}>{info || 'Verifying your identity...'}</p>
+            <div className={styles.spinner}></div>
           </div>
         );
       case 'success':
         return (
           <div>
-            <p className="text-lg text-green-400">Verification Successful!</p>
+            <p className={styles.success}>Verification Successful!</p>
             {renderContent()}
           </div>
         );
       case 'failed':
         return (
           <div>
-            <p className="text-lg text-red-400">Verification Failed</p>
-            {error && <p className="text-sm text-red-500 mt-2">{error}</p>}
+            <p className={styles.error}>Verification Failed</p>
+            {error && <p className={styles.errorDetails}>{error}</p>}
             <button
               onClick={handleRetry}
-              className="mt-4 px-6 py-2 font-semibold text-white bg-green-600 rounded-md hover:bg-green-700"
+              className={styles.button}
             >
               Try Again
             </button>
@@ -247,8 +246,8 @@ export default function ReceiverPage() {
       case 'invalid':
         return (
             <div>
-                <p className="text-lg text-red-400">Invalid Link</p>
-                {error && <p className="text-sm text-red-500 mt-2">{error}</p>}
+                <p className={styles.error}>Invalid Link</p>
+                {error && <p className={styles.errorDetails}>{error}</p>}
             </div>
         );
       default:
@@ -261,8 +260,8 @@ export default function ReceiverPage() {
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4">
       <Pattern />
-      <div className="w-full max-w-md p-8 space-y-6 text-center">
-        <h1 className="text-3xl font-bold text-gray-100">Face Verification</h1>
+      <div className={styles.contentWrapper}>
+        <h1 className={styles.title}>Face Verification</h1>
         {renderStatus()}
       </div>
     </div>

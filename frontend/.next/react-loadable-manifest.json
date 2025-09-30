@@ -443,6 +443,14 @@
       "static/chunks/_app-pages-browser_node_modules_rainbow-me_rainbowkit_dist_zora-FYL5H3IO_js.js"
     ]
   },
+  "..\\node_modules\\@react-three\\drei\\core\\VideoTexture.js -> hls.js": {
+    "id": "..\\node_modules\\@react-three\\drei\\core\\VideoTexture.js -> hls.js",
+    "files": []
+  },
+  "..\\node_modules\\@react-three\\drei\\web\\FaceLandmarker.js -> @mediapipe/tasks-vision": {
+    "id": "..\\node_modules\\@react-three\\drei\\web\\FaceLandmarker.js -> @mediapipe/tasks-vision",
+    "files": []
+  },
   "..\\node_modules\\@reown\\appkit-controllers\\node_modules\\@walletconnect\\utils\\node_modules\\viem\\_esm\\actions\\public\\call.js -> ../../utils/ccip.js": {
     "id": "..\\node_modules\\@reown\\appkit-controllers\\node_modules\\@walletconnect\\utils\\node_modules\\viem\\_esm\\actions\\public\\call.js -> ../../utils/ccip.js",
     "files": []
@@ -1003,6 +1011,20 @@
   },
   "..\\node_modules\\viem\\_esm\\utils\\signature\\recoverPublicKey.js -> @noble/curves/secp256k1": {
     "id": "..\\node_modules\\viem\\_esm\\utils\\signature\\recoverPublicKey.js -> @noble/curves/secp256k1",
-    "files": []
+    "files": [
+      "static/chunks/_app-pages-browser_node_modules_viem_node_modules_noble_curves_esm_secp256k1_js.js"
+    ]
+  },
+  "app\\page.tsx -> @/components/AppTour": {
+    "id": "app\\page.tsx -> @/components/AppTour",
+    "files": [
+      "static/chunks/_app-pages-browser_src_components_AppTour_tsx.js"
+    ]
+  },
+  "app\\r\\[policyId]\\page.tsx -> @/components/FaceVerification": {
+    "id": "app\\r\\[policyId]\\page.tsx -> @/components/FaceVerification",
+    "files": [
+      "static/chunks/_app-pages-browser_src_components_FaceVerification_tsx.js"
+    ]
   }
 }
