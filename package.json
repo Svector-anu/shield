@@ -1,5 +1,8 @@
 {
   "devDependencies": {
     "hardhat": "^3.0.6"
+  },
+  "dependencies": {
+    "@dataconnect/generated": "file:src/dataconnect-generated"
   }
 }

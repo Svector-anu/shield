@@ -443,14 +443,6 @@
       "static/chunks/_app-pages-browser_node_modules_rainbow-me_rainbowkit_dist_zora-FYL5H3IO_js.js"
     ]
   },
-  "..\\node_modules\\@react-three\\drei\\core\\VideoTexture.js -> hls.js": {
-    "id": "..\\node_modules\\@react-three\\drei\\core\\VideoTexture.js -> hls.js",
-    "files": []
-  },
-  "..\\node_modules\\@react-three\\drei\\web\\FaceLandmarker.js -> @mediapipe/tasks-vision": {
-    "id": "..\\node_modules\\@react-three\\drei\\web\\FaceLandmarker.js -> @mediapipe/tasks-vision",
-    "files": []
-  },
   "..\\node_modules\\@reown\\appkit-controllers\\node_modules\\@walletconnect\\utils\\node_modules\\viem\\_esm\\actions\\public\\call.js -> ../../utils/ccip.js": {
     "id": "..\\node_modules\\@reown\\appkit-controllers\\node_modules\\@walletconnect\\utils\\node_modules\\viem\\_esm\\actions\\public\\call.js -> ../../utils/ccip.js",
     "files": []
@@ -1019,12 +1011,6 @@
     "id": "app\\page.tsx -> @/components/AppTour",
     "files": [
       "static/chunks/_app-pages-browser_src_components_AppTour_tsx.js"
-    ]
-  },
-  "app\\r\\[policyId]\\page.tsx -> @/components/FaceVerification": {
-    "id": "app\\r\\[policyId]\\page.tsx -> @/components/FaceVerification",
-    "files": [
-      "static/chunks/_app-pages-browser_src_components_FaceVerification_tsx.js"
     ]
   }
 }
