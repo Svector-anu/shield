@@ -35,7 +35,7 @@ Follow these steps to set up the project locally.
 ### 1. Clone the Repository
 
 ```bash
-git clone <your-repository-url>
+git clone <https://github.com/Babs0022/SHIELD.git>
 cd SHIELD
 ```
 
