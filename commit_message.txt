@@ -1,0 +1,4 @@
+feat: Resolve merge conflicts and update dependencies
+
+- Added `.next` to `.gitignore` to prevent build artifacts from being tracked.
+- Regenerated `package-lock.json` to resolve merge conflicts and update dependencies.
