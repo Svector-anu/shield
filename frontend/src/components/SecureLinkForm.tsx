@@ -7,11 +7,48 @@ import * as faceapi from 'face-api.js';
 import toast from 'react-hot-toast';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db, app } from '@/lib/firebase';
-import { getFunctions, httpsCallable } from 'firebase/functions';
-import { doc, setDoc } from 'firebase/firestore';
-import { useAccount, useWriteContract } from 'wagmi';
+import { LitNodeClient } from '@lit-protocol/lit-node-client';
 import { ethers } from 'ethers';
 import ShieldABI from '@/lib/Shield.json';
+
+// This is the Lit Action that will be used to upload to IPFS
+// In a real app, you would fetch this from a secure location
+// or have it version controlled.
+const litActionCode = `
+  const go = async () => {
+    const url = "https://api.pinata.cloud/pinning/pinJSONToIPFS";
+    
+    const pinataData = {
+      pinataContent: dataType === "json" ? JSON.parse(encryptedData) : encryptedData,
+    };
+
+    try {
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + pinataJwt,
+        },
+        body: JSON.stringify(pinataData),
+      });
+
+      if (resp.ok) {
+        const data = await resp.json();
+        Lit.Actions.setResponse({ response: JSON.stringify({ cid: data.IpfsHash }) });
+      } else {
+        const errorText = await resp.text();
+        console.error("Pinata error:", errorText);
+        Lit.Actions.setResponse({ response: JSON.stringify({ error: 'Failed to pin to Pinata: ' + errorText }) });
+      }
+    } catch(e) {
+      console.error("Error in Lit Action:", e);
+      Lit.Actions.setResponse({ response: JSON.stringify({ error: 'An unexpected error occurred in the Lit Action.'}) });
+    }
+  };
+
+  go();
+`;
+
 
 type ShareMode = 'file' | 'text';
 
@@ -31,6 +68,26 @@ const SecureLinkForm = () => {
   const [modelsLoaded, setModelsLoaded] = useState<boolean>(false);
   const [faceDescriptor, setFaceDescriptor] = useState<Float32Array | null>(null);
   const [feedbackMessage, setFeedbackMessage] = useState<string>('');
+
+  const [litNodeClient, setLitNodeClient] = useState<LitNodeClient | null>(null);
+
+  useEffect(() => {
+    const connectToLit = async () => {
+      try {
+        const client = new LitNodeClient({
+          litNetwork: 'cayenne', // Use the 'cayenne' testnet
+          debug: false,
+        });
+        await client.connect();
+        setLitNodeClient(client);
+      } catch (err) {
+        console.error("Error connecting to Lit Protocol:", err);
+        toast.error("Could not connect to the decentralized network. Please refresh.");
+      }
+    };
+    connectToLit();
+  }, []);
+
 
   useEffect(() => {
     if (isSuccess) {
@@ -105,10 +162,21 @@ const SecureLinkForm = () => {
         toast.error('Please connect your wallet first.');
         return;
     }
+    if (!litNodeClient) {
+      toast.error('Still connecting to the decentralized network. Please wait a moment.');
+      return;
+    }
 
     const contractAddress = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS;
     if (!contractAddress || !ethers.isAddress(contractAddress)) {
       toast.error("Invalid or missing contract address. Please check your .env.local file.");
+      setIsSubmitting(false);
+      return;
+    }
+
+    const pinataJwt = process.env.NEXT_PUBLIC_PINATA_JWT;
+    if (!pinataJwt) {
+      toast.error("Pinata JWT is not configured. Please check your .env.local file.");
       setIsSubmitting(false);
       return;
     }
@@ -150,20 +218,36 @@ const SecureLinkForm = () => {
       
       const faceDescriptorString = JSON.stringify(Array.from(faceDescriptor));
 
-      const functions = getFunctions(app);
-      const uploadToIpfs = httpsCallable(functions, 'uploadToIpfs');
+      setFeedbackMessage('Uploading to secure storage via Lit Protocol...');
 
-      setFeedbackMessage('Uploading to secure storage...');
-      const [resourceResult, descriptorResult] = await Promise.all([
-        uploadToIpfs({ data: encryptedDataString, type: 'string' }),
-        uploadToIpfs({ data: faceDescriptorString, type: 'json' }),
-      ]);
+      const uploadPromises = [
+        litNodeClient.executeJs({
+          code: litActionCode,
+          jsParams: {
+            encryptedData: encryptedDataString,
+            dataType: 'string',
+            pinataJwt: pinataJwt,
+          },
+        }),
+        litNodeClient.executeJs({
+          code: litActionCode,
+          jsParams: {
+            encryptedData: faceDescriptorString,
+            dataType: 'json',
+            pinataJwt: pinataJwt,
+          },
+        }),
+      ];
 
-      const resourceCid = (resourceResult.data as { cid: string }).cid;
-      const faceCid = (descriptorResult.data as { cid: string }).cid;
+      const [resourceResult, descriptorResult] = await Promise.all(uploadPromises);
+
+      const resourceCid = JSON.parse(resourceResult.response as string).cid;
+      const faceCid = JSON.parse(descriptorResult.response as string).cid;
 
       if (!resourceCid || !faceCid) {
-        throw new Error('Failed to get CIDs from IPFS upload.');
+        console.error("Lit Action Response (Resource):", resourceResult.response);
+        console.error("Lit Action Response (Descriptor):", descriptorResult.response);
+        throw new Error('Failed to get CIDs from IPFS upload via Lit Protocol.');
       }
 
       setFeedbackMessage('Please confirm the transaction in your wallet...');
