@@ -21,7 +21,7 @@ Shield's security model is designed to remove the need for a trusted intermediar
 **1. Creating a Secure Link (Sender)**
    a. **Upload Content:** The sender selects a file or writes a message on the Shield frontend.
    b. **Provide Recipient's Face:** The sender uploads a clear picture of the intended recipient. The frontend uses `face-api.js` to create a mathematical representation (a "face descriptor") of the recipient's face.
-   c. **Encrypt Data:** A new, random AES-256 secret key is generated in the browser. This key is used to encrypt the file/message.
+   c. **Encrypt Data:** A new, random AES-256 secret key is generated in the browser. This key is used to encrypt the files/texts.
    d. **Upload to Decentralized Storage:** The encrypted data and the recipient's face descriptor are uploaded to decentralized storage via a decentralized network (Lit Protocol), returning two unique content identifiers (CIDs).
    e. **Create On-Chain Policy:** The sender submits a transaction to the Shield smart contract. This creates an `AccessPolicy` on the blockchain, containing the access rules (e.g., expiry time, max attempts) but **not** the secret key or CIDs. This policy is linked to a unique, randomly generated `policyId`.
    f. **Store Secret:** The secret key and storage CIDs are stored in a secure database (Firestore), linked to the on-chain `policyId`.
