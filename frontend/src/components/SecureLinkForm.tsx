@@ -6,9 +6,14 @@ import CryptoJS from 'crypto-js';
 import * as faceapi from 'face-api.js';
 import toast from 'react-hot-toast';
 import { useAuthState } from 'react-firebase-hooks/auth';
-import { auth, db, app } from '@/lib/firebase';
+import { auth, db } from '@/lib/firebase';
 import { LitNodeClient } from '@lit-protocol/lit-node-client';
-import { ethers } from 'ethers';
+import { LitActionResource } from '@lit-protocol/auth-helpers';
+import { useAccount, useWriteContract } from 'wagmi';
+import { signMessage } from '@wagmi/core';
+import { config } from '@/app/providers';
+import { doc, setDoc } from 'firebase/firestore';
+import { isAddress, toHex } from 'viem';
 import ShieldABI from '@/lib/Shield.json';
 
 // This is the Lit Action that will be used to upload to IPFS
@@ -54,7 +59,7 @@ type ShareMode = 'file' | 'text';
 
 const SecureLinkForm = () => {
   const [user] = useAuthState(auth);
-  const { address } = useAccount();
+  const { address, connector } = useAccount();
   const { data: hash, writeContract, isPending, isSuccess, isError, error } = useWriteContract();
 
   const [shareMode, setShareMode] = useState<ShareMode>('file');
@@ -70,12 +75,14 @@ const SecureLinkForm = () => {
   const [feedbackMessage, setFeedbackMessage] = useState<string>('');
 
   const [litNodeClient, setLitNodeClient] = useState<LitNodeClient | null>(null);
+  const [isLitConnecting, setIsLitConnecting] = useState<boolean>(true);
 
   useEffect(() => {
     const connectToLit = async () => {
+      setIsLitConnecting(true);
       try {
         const client = new LitNodeClient({
-          litNetwork: 'cayenne', // Use the 'cayenne' testnet
+          litNetwork: 'datil-test', // Use the 'datil-test' testnet
           debug: false,
         });
         await client.connect();
@@ -83,6 +90,8 @@ const SecureLinkForm = () => {
       } catch (err) {
         console.error("Error connecting to Lit Protocol:", err);
         toast.error("Could not connect to the decentralized network. Please refresh.");
+      } finally {
+        setIsLitConnecting(false);
       }
     };
     connectToLit();
@@ -158,7 +167,7 @@ const SecureLinkForm = () => {
       toast.error('You must be logged in to create a link.');
       return;
     }
-    if (!address) {
+    if (!address || !connector) {
         toast.error('Please connect your wallet first.');
         return;
     }
@@ -168,7 +177,7 @@ const SecureLinkForm = () => {
     }
 
     const contractAddress = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS;
-    if (!contractAddress || !ethers.isAddress(contractAddress)) {
+    if (!contractAddress || !isAddress(contractAddress)) {
       toast.error("Invalid or missing contract address. Please check your .env.local file.");
       setIsSubmitting(false);
       return;
@@ -218,11 +227,43 @@ const SecureLinkForm = () => {
       
       const faceDescriptorString = JSON.stringify(Array.from(faceDescriptor));
 
+      setFeedbackMessage('Waiting for wallet signature...');
+
+      // Get session signatures
+      const resourceAbilityRequests = [{
+        resource: new LitActionResource('*'),
+        ability: 'litAction:execute',
+      }];
+
+      const authNeededCallback = async (params: any) => {
+        const { messageToSign } = params;
+
+        if (!address) {
+          toast.error("Wallet not connected, cannot sign message");
+          throw new Error("Wallet not connected");
+        }
+
+        const signature = await signMessage(config, { connector, message: messageToSign });
+
+        return {
+          sig: signature,
+          derivedVia: 'web3.eth.personal.sign',
+          signedMessage: messageToSign,
+          address: address,
+        };
+      };
+
+      const sessionSigs = await litNodeClient.getSessionSigs({
+        resourceAbilityRequests,
+        authNeededCallback,
+      });
+
       setFeedbackMessage('Uploading to secure storage via Lit Protocol...');
 
       const uploadPromises = [
         litNodeClient.executeJs({
           code: litActionCode,
+          sessionSigs,
           jsParams: {
             encryptedData: encryptedDataString,
             dataType: 'string',
@@ -231,6 +272,7 @@ const SecureLinkForm = () => {
         }),
         litNodeClient.executeJs({
           code: litActionCode,
+          sessionSigs,
           jsParams: {
             encryptedData: faceDescriptorString,
             dataType: 'json',
@@ -252,7 +294,7 @@ const SecureLinkForm = () => {
 
       setFeedbackMessage('Please confirm the transaction in your wallet...');
       
-      const policyId = ethers.hexlify(ethers.randomBytes(32));
+      const policyId = toHex(window.crypto.getRandomValues(new Uint8Array(32)));
       const expiryTimestamp = Math.floor(Date.now() / 1000) + expiry;
 
       writeContract({
@@ -264,7 +306,7 @@ const SecureLinkForm = () => {
       
       setFeedbackMessage('Creating secure link...');
       
-      await setDoc(doc(db, 'policies', ethers.hexlify(policyId)), {
+      await setDoc(doc(db, 'policies', policyId), {
         creatorId: user.uid,
         resourceCid: resourceCid,
         faceCid: faceCid,
@@ -277,7 +319,7 @@ const SecureLinkForm = () => {
         valid: true,
       });
 
-      const link = `${window.location.origin}/r/${ethers.hexlify(policyId)}`;
+      const link = `${window.location.origin}/r/${policyId}`;
       setSecureLink(link);
       toast.success('Secure link generated successfully!');
       setFeedbackMessage('');
@@ -340,8 +382,8 @@ const SecureLinkForm = () => {
           </label>
         </div>  
         
-        <button className="submit generate-link-button-selector" type="submit" disabled={isSubmitting || !faceDescriptor || !user}>
-          {isSubmitting ? 'Generating...' : (user ? 'Generate Link' : 'Sign in to Generate Link')}
+        <button className="submit generate-link-button-selector" type="submit" disabled={isSubmitting || !faceDescriptor || !user || isLitConnecting}>
+          {isLitConnecting ? 'Connecting to Network...' : (isSubmitting ? 'Generating...' : (user ? 'Generate Link' : 'Sign in to Generate Link'))}
         </button>
 
         {secureLink && (

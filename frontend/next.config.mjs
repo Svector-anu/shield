@@ -14,6 +14,7 @@ const nextConfig = {
       config.resolve.fallback = {
         fs: false,
         encoding: false,
+        '@react-native-async-storage/async-storage': false,
       };
     }
 

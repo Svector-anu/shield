@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuthState } from 'react-firebase-hooks/auth';
-import { auth, db } from '@/lib/firebase';
+import { useAccount } from 'wagmi';
+import { db } from '@/lib/firebase';
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import styles from './Profile.module.css';
 import Pattern from '@/components/Pattern';
@@ -19,15 +19,15 @@ interface UserProfile {
 }
 
 export default function ProfilePage() {
-  const [user, loading] = useAuthState(auth);
+  const { address, isConnected } = useAccount();
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
     const fetchUserProfile = async () => {
-      if (user) {
-        const userDocRef = doc(db, 'users', user.uid);
+      if (isConnected && address) {
+        const userDocRef = doc(db, 'users', address);
         const userDocSnap = await getDoc(userDocRef);
 
         if (userDocSnap.exists()) {
@@ -43,13 +43,13 @@ export default function ProfilePage() {
           setUserProfile(newProfile);
           setShowOnboarding(true);
         }
+      } else {
+        router.push('/login');
       }
     };
 
-    if (!loading) {
-      fetchUserProfile();
-    }
-  }, [user, loading]);
+    fetchUserProfile();
+  }, [isConnected, address, router]);
 
   const finishOnboarding = () => {
     setShowOnboarding(false);
@@ -57,8 +57,8 @@ export default function ProfilePage() {
   };
 
   const handleSurveyComplete = async (answers: Record<string, string>) => {
-    if (user) {
-      const userDocRef = doc(db, 'users', user.uid);
+    if (address) {
+      const userDocRef = doc(db, 'users', address);
       try {
         await updateDoc(userDocRef, {
           onboardingCompleted: true,
@@ -73,8 +73,8 @@ export default function ProfilePage() {
   };
 
   const handleSurveySkip = async () => {
-    if (user) {
-      const userDocRef = doc(db, 'users', user.uid);
+    if (address) {
+      const userDocRef = doc(db, 'users', address);
       try {
         await updateDoc(userDocRef, {
           onboardingCompleted: true,
@@ -86,18 +86,10 @@ export default function ProfilePage() {
     }
   };
 
-  if (loading || !userProfile && user) {
+  if (!isConnected || !userProfile) {
     return (
       <main className={styles.container}>
         <p>Loading profile...</p>
-      </main>
-    );
-  }
-
-  if (!user) {
-    return (
-      <main className={styles.container}>
-        <p>Please sign in to view your profile.</p>
       </main>
     );
   }
@@ -112,9 +104,9 @@ export default function ProfilePage() {
       <div className={styles.content}>
         <h1 className={styles.title}>My Profile</h1>
         
-        <ProfileInfo user={user} />
-        <MyLinks user={user} />
-        <SecuritySettings user={user} />
+        <ProfileInfo user={{ uid: address }} />
+        <MyLinks user={{ uid: address }} />
+        <SecuritySettings user={{ uid: address }} />
 
       </div>
     </main>

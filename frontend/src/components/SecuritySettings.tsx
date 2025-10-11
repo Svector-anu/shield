@@ -1,24 +1,28 @@
 "use client";
 
 import { useState } from 'react';
-import { User, deleteUser } from 'firebase/auth';
+import { doc, deleteDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import styles from './ProfileSection.module.css';
 import parentStyles from '../app/profile/Profile.module.css';
 import dangerStyles from './SecuritySettings.module.css';
-import ConfirmModal from './ConfirmModal'; // Import the new modal component
+import ConfirmModal from './ConfirmModal';
 
-export default function SecuritySettings({ user }: { user: User }) {
+export default function SecuritySettings({ user }: { user: { uid: string } }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const router = useRouter();
 
   const handleDeleteAccount = async () => {
     const toastId = toast.loading('Deleting account...');
     try {
-      await deleteUser(user);
+      const userDocRef = doc(db, 'users', user.uid);
+      await deleteDoc(userDocRef);
       toast.success('Account deleted successfully.', { id: toastId });
-      // The user will be redirected automatically by the auth state listener.
+      router.push('/');
     } catch (error: any) {
-      toast.error(`Error: ${error.message}. You may need to sign in again to perform this action.`, { id: toastId });
+      toast.error(`Error: ${error.message}.`, { id: toastId });
     } finally {
       setIsModalOpen(false);
     }

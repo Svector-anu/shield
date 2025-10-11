@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { User } from 'firebase/auth';
 import { collection, query, where, getDocs, doc, updateDoc, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import toast from 'react-hot-toast';
@@ -16,7 +15,7 @@ interface Policy {
   valid: boolean;
 }
 
-export default function MyLinks({ user }: { user: User }) {
+export default function MyLinks({ user }: { user: { uid: string } }) {
   const [links, setLinks] = useState<Policy[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -34,8 +33,10 @@ export default function MyLinks({ user }: { user: User }) {
       }
     };
 
-    fetchLinks();
-  }, [user.uid]);
+    if (user && user.uid) {
+      fetchLinks();
+    }
+  }, [user]);
 
   const handleCopyLink = (id: string) => {
     const link = `${window.location.origin}/r/${id}`;
