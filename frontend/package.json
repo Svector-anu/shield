@@ -17,7 +17,7 @@
     "@lit-protocol/constants": "^7.3.1",
     "@lit-protocol/lit-node-client": "^7.2.3",
     "@rainbow-me/rainbowkit": "^2.2.8",
-    "@reown/appkit": "^1.0.4",
+    "@reown/appkit": "^1.8.9",
     "@reown/appkit-siwx": "^1.8.9",
     "@tanstack/react-query": "^5.90.2",
     "@types/crypto-js": "^4.2.2",

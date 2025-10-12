@@ -1,7 +1,7 @@
 'use client';
 
 import '@rainbow-me/rainbowkit/styles.css';
-import { RainbowKitProvider, lightTheme, getDefaultConfig } from '@rainbow-me/rainbowkit';
+import { RainbowKitProvider, lightTheme } from '@rainbow-me/rainbowkit';
 import { WagmiProvider } from 'wagmi';
 import {
   mainnet,
@@ -14,8 +14,10 @@ import {
 } from 'wagmi/chains';
 import { QueryClientProvider, QueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from 'react';
+import { createAppKit } from '@reown/appkit';
+import { ReownAuthentication } from '@reown/appkit-siwx';
 
-const config = getDefaultConfig({
+const { config } = createAppKit({
   appName: 'Shield',
   projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || '', // Replace with your WalletConnect Project ID
   chains: [
@@ -28,6 +30,7 @@ const config = getDefaultConfig({
     ...(process.env.NODE_ENV === 'development' ? [localhost] : [])
   ],
   ssr: true, // If your dApp uses server side rendering (SSR)
+  siwx: new ReownAuthentication(),
 });
 
 const queryClient = new QueryClient();

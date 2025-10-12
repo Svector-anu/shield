@@ -9,7 +9,6 @@ import { auth, db } from '@/lib/firebase';
 import { LitNodeClient } from '@lit-protocol/lit-node-client';
 import { LitActionResource } from '@lit-protocol/auth-helpers';
 import { useAccount, useWriteContract } from 'wagmi';
-import { getAccount, getWalletClient, signMessage } from '@wagmi/core';
 import { config, queryClient } from '@/app/providers';
 import { doc, setDoc } from 'firebase/firestore';
 import { isAddress, toHex } from 'viem';
@@ -234,29 +233,8 @@ const SecureLinkForm = () => {
         ability: 'litAction:execute' as any,
       }];
 
-      const authNeededCallback = async (params: { messageToSign: string }) => {
-        const { messageToSign } = params;
-        const { connector } = getAccount(config);
-
-        if (!address || !connector) {
-          toast.error("Wallet not connected, cannot sign message");
-          throw new Error("Wallet not connected");
-        }
-
-        const signature = await signMessage(config, { connector, message: messageToSign });
-
-        return {
-          sig: signature,
-          derivedVia: 'web3.eth.personal.sign',
-          signedMessage: messageToSign,
-          address: address,
-        };
-      };
-
-      const sessionSigs = await litNodeClient.getSessionSigs({
+      const sessionSigs = await litNodeClient.getLitActionSessionSigs({
         resourceAbilityRequests,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        authNeededCallback: authNeededCallback as any,
       });
 
       setFeedbackMessage('Uploading to secure storage via Lit Protocol...');
