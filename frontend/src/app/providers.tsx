@@ -32,6 +32,8 @@ const config = getDefaultConfig({
 
 const queryClient = new QueryClient();
 
+export { config, queryClient };
+
 export function Providers({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
