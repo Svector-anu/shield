@@ -1,7 +1,7 @@
 'use client';
 
+import React from 'react';
 import { useEffect, useRef, useState } from 'react';
-import * as faceapi from 'face-api.js';
 import { toast } from 'react-hot-toast';
 
 interface FaceVerificationProps {
@@ -11,28 +11,47 @@ interface FaceVerificationProps {
 
 export default function FaceVerification({ onVerificationResult, setInfo }: FaceVerificationProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const workerRef = useRef<Worker | null>(null);
   const [modelsLoaded, setModelsLoaded] = useState<boolean>(false);
 
   useEffect(() => {
-    const loadModels = async () => {
-      const MODEL_URL = '/models';
-      try {
-        setInfo('Loading AI models...');
-        await Promise.all([
-          faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
-          faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-          faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
-        ]);
-        setModelsLoaded(true);
-        setInfo('Please position your face in the frame.');
-      } catch (e) {
-        setInfo('Error: Could not load AI models.');
-        console.error('Model loading error:', e);
+    // Initialize the web worker
+    workerRef.current = new Worker(new URL('../workers/vision.worker.ts', import.meta.url));
+
+    const handleWorkerMessage = (event: MessageEvent) => {
+      const { type, payload } = event.data;
+      switch (type) {
+        case 'MODELS_LOADED':
+          setModelsLoaded(true);
+          setInfo('Please position your face in the frame.');
+          break;
+        case 'FACE_DETECTED':
+          onVerificationResult(payload);
+          setInfo('Face detected. Ready to verify.');
+          break;
+        case 'NO_FACE_DETECTED':
+          onVerificationResult(null);
+          setInfo('Please position your face in the frame.');
+          break;
+        case 'ERROR':
+          setInfo(`Error: ${payload}`);
+          toast.error(payload);
+          break;
       }
     };
-    loadModels();
-  }, [setInfo]);
+
+    workerRef.current.addEventListener('message', handleWorkerMessage);
+    
+    // Send a message to the worker to start loading the models
+    setInfo('Loading AI models...');
+    workerRef.current.postMessage({ type: 'LOAD_MODELS' });
+
+    // Cleanup function to terminate the worker when the component unmounts
+    return () => {
+      workerRef.current?.removeEventListener('message', handleWorkerMessage);
+      workerRef.current?.terminate();
+    };
+  }, [setInfo, onVerificationResult]);
 
   useEffect(() => {
     const startCamera = async () => {
@@ -53,35 +72,25 @@ export default function FaceVerification({ onVerificationResult, setInfo }: Face
   }, [modelsLoaded]);
 
   const handleVideoPlay = () => {
-    if (!videoRef.current || !canvasRef.current || !modelsLoaded) return;
-
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    faceapi.matchDimensions(canvas, video);
-
-    const interval = setInterval(async () => {
-      if (video.paused || video.ended || video.videoWidth === 0) {
-        return;
+    const processFrame = async () => {
+      if (videoRef.current && !videoRef.current.paused && !videoRef.current.ended && workerRef.current) {
+        const video = videoRef.current;
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const context = canvas.getContext('2d');
+        
+        if (context) {
+          context.drawImage(video, 0, 0, canvas.width, canvas.height);
+          const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/jpeg'));
+          if (blob) {
+            workerRef.current.postMessage({ type: 'DETECT_FACE', payload: { imageBlob: blob } });
+          }
+        }
       }
-      const detections = await faceapi.detectAllFaces(video)
-        .withFaceLandmarks()
-        .withFaceDescriptors();
-      
-      const resizedDetections = faceapi.resizeResults(detections, video);
-      const context = canvas.getContext('2d');
-      if (context) {
-        context.clearRect(0, 0, canvas.width, canvas.height);
-        faceapi.draw.drawDetections(canvas, resizedDetections);
-      }
+    };
 
-      if (detections.length > 0 && detections[0].descriptor) {
-        onVerificationResult(detections[0].descriptor);
-        setInfo('Face detected. Ready to verify.');
-      } else {
-        onVerificationResult(null);
-        setInfo('Please position your face in the frame.');
-      }
-    }, 300);
+    const interval = setInterval(processFrame, 500); // Process a frame every 500ms
 
     return () => clearInterval(interval);
   };
@@ -89,7 +98,7 @@ export default function FaceVerification({ onVerificationResult, setInfo }: Face
   return (
     <div className="relative w-full max-w-xs mx-auto">
       <video ref={videoRef} autoPlay muted onPlay={handleVideoPlay} className="w-full rounded-lg" />
-      <canvas ref={canvasRef} className="absolute top-0 left-0" />
+      {/* The canvas for drawing detections is removed as the worker doesn't send draw data */}
     </div>
   );
 }

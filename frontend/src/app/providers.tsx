@@ -1,8 +1,15 @@
 'use client';
 
+import React from 'react';
 import '@rainbow-me/rainbowkit/styles.css';
-import { RainbowKitProvider, lightTheme } from '@rainbow-me/rainbowkit';
-import { WagmiProvider } from 'wagmi';
+import { connectorsForWallets, RainbowKitProvider, lightTheme } from '@rainbow-me/rainbowkit';
+import {
+  injectedWallet,
+  metaMaskWallet,
+  safeWallet,
+  walletConnectWallet,
+} from '@rainbow-me/rainbowkit/wallets';
+import { WagmiProvider, createConfig, http } from 'wagmi';
 import {
   mainnet,
   polygon,
@@ -14,28 +21,46 @@ import {
 } from 'wagmi/chains';
 import { QueryClientProvider, QueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from 'react';
-import { createAppKit } from '@reown/appkit';
-import { ReownAuthentication } from '@reown/appkit-siwx';
 
-const { config } = createAppKit({
-  appName: 'Shield',
-  projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || '', // Replace with your WalletConnect Project ID
+const connectors = connectorsForWallets(
+  [
+    {
+      groupName: 'Recommended',
+      wallets: [injectedWallet, metaMaskWallet, safeWallet, walletConnectWallet],
+    },
+  ],
+  {
+    appName: 'Shield',
+    projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || '',
+  }
+);
+
+const config = createConfig({
+  connectors,
   chains: [
-    mainnet, 
-    polygon, 
-    optimism, 
-    arbitrum, 
-    base, 
-    sepolia, 
+    mainnet,
+    polygon,
+    optimism,
+    arbitrum,
+    base,
+    sepolia,
     ...(process.env.NODE_ENV === 'development' ? [localhost] : [])
   ],
-  ssr: true, // If your dApp uses server side rendering (SSR)
-  siwx: new ReownAuthentication(),
+  transports: {
+    [mainnet.id]: http(),
+    [polygon.id]: http(),
+    [optimism.id]: http(),
+    [arbitrum.id]: http(),
+    [base.id]: http(),
+    [sepolia.id]: http(),
+    ...(process.env.NODE_ENV === 'development' ? { [localhost.id]: http() } : {})
+  },
 });
 
 const queryClient = new QueryClient();
 
-export { config, queryClient };
+// Export the config for use in other components
+export { config };
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);

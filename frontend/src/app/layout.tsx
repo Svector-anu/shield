@@ -1,3 +1,4 @@
+import React from 'react';
 import './globals.css';
 import StyledComponentsRegistry from '../lib/StyledComponentsRegistry';
 import { Toaster } from 'react-hot-toast';

@@ -1,5 +1,6 @@
 'use client';
 
+import React from 'react';
 import { useState, useEffect } from 'react';
 import SecureLinkForm from "@/components/SecureLinkForm";
 import Pattern from "@/components/Pattern";

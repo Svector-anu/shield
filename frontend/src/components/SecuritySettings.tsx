@@ -1,5 +1,6 @@
 "use client";
 
+import React from 'react';
 import { useState } from 'react';
 import { doc, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
