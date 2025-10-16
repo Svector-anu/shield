@@ -1,9 +1,7 @@
 /// <reference lib="webworker" />
 import { FaceLandmarker, FilesetResolver } from "@mediapipe/tasks-vision";
 
-// This is a special variable in web workers that refers to the worker's global scope.
 const worker: Worker = self as unknown as Worker;
-
 let faceLandmarker: FaceLandmarker | null = null;
 
 const setup = async () => {
@@ -11,65 +9,59 @@ const setup = async () => {
     return;
   }
   try {
-    const vision = await FilesetResolver.forVisionTasks(
-      // Path to the WASM files required by MediaPipe.
-      // These are now served locally from our public directory.
-      "/wasm"
-    );
+    const vision = await FilesetResolver.forVisionTasks("/wasm");
     faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
       baseOptions: {
-        // This is a lightweight, yet accurate model for our purpose.
-        modelAssetPath: `https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task`,
+        modelAssetPath: `/models/face_landmarker.task`,
         delegate: "CPU",
       },
-      outputFaceBlendshapes: false, // We don't need blendshapes (like smiling, frowning).
-      outputFacialTransformationMatrixes: false, // We don't need the transformation matrix.
-      outputFaceEmbeddings: true, // This is the key: we need the facial "fingerprint".
-      numFaces: 1, // We only care about the single, most prominent face.
-      runningMode: 'IMAGE', // Explicitly set the mode for single image processing.
-      minFaceDetectionConfidence: 0.3, // Lower the confidence threshold to be less strict.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      outputFaceEmbeddings: true,
+      outputFaceBlendshapes: false,
+      outputFacialTransformationMatrixes: false,
+      numFaces: 1,
+      runningMode: 'IMAGE',
     } as any);
-
     worker.postMessage({ type: 'MODELS_LOADED' });
   } catch (error) {
     console.error('Worker model loading error:', error);
-    worker.postMessage({ type: 'ERROR', payload: 'Could not load AI models in the background.' });
+    worker.postMessage({ type: 'ERROR', payload: `Failed to load AI models. Details: ${error.message}` });
   }
 };
 
-// Listen for messages from the main application thread.
+const cosineSimilarity = (vecA: number[], vecB: number[]) => {
+  const dotProduct = vecA.reduce((acc, val, i) => acc + val * vecB[i], 0);
+  const magA = Math.sqrt(vecA.reduce((acc, val) => acc + val * val, 0));
+  const magB = Math.sqrt(vecB.reduce((acc, val) => acc + val * val, 0));
+  return dotProduct / (magA * magB);
+};
+
 worker.addEventListener('message', async (event) => {
   const { type, payload } = event.data;
 
   if (type === 'LOAD_MODELS') {
     await setup();
-  } else if (type === 'DETECT_FACE') {
-    if (!faceLandmarker) {
-      // This is a fallback in case the models weren't pre-loaded.
-      await setup();
-    }
-    if (!faceLandmarker) {
-      // If loading failed, we can't proceed.
-      return;
-    }
+  } else if (type === 'COMPARE_FACES') {
+    if (!faceLandmarker) await setup();
+    if (!faceLandmarker) return;
 
-    const { imageBlob } = payload;
+    const { image1, image2 } = payload;
     try {
-      const imageBitmap = await createImageBitmap(imageBlob);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const result: any = faceLandmarker.detect(imageBitmap);
+      const imageBitmap1 = await createImageBitmap(image1);
+      const imageBitmap2 = await createImageBitmap(image2);
 
-      // MediaPipe returns embeddings as a Float32Array inside a nested structure.
-      if (result.faceEmbeddings && result.faceEmbeddings.length > 0) {
-        const descriptor = result.faceEmbeddings[0].embedding;
-        worker.postMessage({ type: 'FACE_DETECTED', payload: descriptor });
+      const result1: any = faceLandmarker.detect(imageBitmap1);
+      const result2: any = faceLandmarker.detect(imageBitmap2);
+
+      if (result1.faceEmbeddings?.[0]?.embedding && result2.faceEmbeddings?.[0]?.embedding) {
+        const descriptor1 = result1.faceEmbeddings[0].embedding;
+        const descriptor2 = result2.faceEmbeddings[0].embedding;
+        const similarity = cosineSimilarity(descriptor1, descriptor2);
+        worker.postMessage({ type: 'COMPARISON_RESULT', payload: { success: similarity > 0.9 } });
       } else {
-        worker.postMessage({ type: 'NO_FACE_DETECTED', payload: { result } });
+        worker.postMessage({ type: 'COMPARISON_RESULT', payload: { success: false, error: 'Could not detect a face in one or both images.' } });
       }
     } catch (error) {
-      console.error('Worker face detection error:', error);
-      worker.postMessage({ type: 'ERROR', payload: 'An error occurred during face processing.' });
+      worker.postMessage({ type: 'ERROR', payload: 'An error occurred during face comparison.' });
     }
   }
 });

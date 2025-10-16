@@ -1,67 +1,17 @@
 'use client';
 
-import React from 'react';
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
-import CryptoJS from 'crypto-js';
-import * as faceapi from 'face-api.js';
 import toast from 'react-hot-toast';
 import { useAuthState } from 'react-firebase-hooks/auth';
-import { auth, db } from '@/lib/firebase';
-import { LitNodeClient } from '@lit-protocol/lit-node-client';
-import { LitActionResource } from '@lit-protocol/auth-helpers';
-import { useAccount, useWriteContract } from 'wagmi';
-import { signMessage } from '@wagmi/core';
-import { config } from '@/app/providers';
-import { doc, setDoc } from 'firebase/firestore';
-import { isAddress, toHex } from 'viem';
-import ShieldABI from '@/lib/Shield.json';
-
-// This is the Lit Action that will be used to upload to IPFS
-// In a real app, you would fetch this from a secure location
-// or have it version controlled.
-const litActionCode = `
-  const go = async () => {
-    const url = "https://api.pinata.cloud/pinning/pinJSONToIPFS";
-    
-    const pinataData = {
-      pinataContent: dataType === "json" ? JSON.parse(encryptedData) : encryptedData,
-    };
-
-    try {
-      const resp = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + pinataJwt,
-        },
-        body: JSON.stringify(pinataData),
-      });
-
-      if (resp.ok) {
-        const data = await resp.json();
-        Lit.Actions.setResponse({ response: JSON.stringify({ cid: data.IpfsHash }) });
-      } else {
-        const errorText = await resp.text();
-        console.error("Pinata error:", errorText);
-        Lit.Actions.setResponse({ response: JSON.stringify({ error: 'Failed to pin to Pinata: ' + errorText }) });
-      }
-    } catch(e) {
-      console.error("Error in Lit Action:", e);
-      Lit.Actions.setResponse({ response: JSON.stringify({ error: 'An unexpected error occurred in the Lit Action.'}) });
-    }
-  };
-
-  go();
-`;
-
+import { auth } from '@/lib/firebase';
+import { useAccount } from 'wagmi';
 
 type ShareMode = 'file' | 'text';
 
 const SecureLinkForm = () => {
   const [user] = useAuthState(auth);
-  const { address, connector } = useAccount();
-  const { data: hash, writeContract, isPending, isSuccess, isError, error } = useWriteContract();
+  const { address } = useAccount();
 
   const [shareMode, setShareMode] = useState<ShareMode>('file');
   const [file, setFile] = useState<File | null>(null);
@@ -71,61 +21,8 @@ const SecureLinkForm = () => {
   const [secureLink, setSecureLink] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   
-  const [modelsLoaded, setModelsLoaded] = useState<boolean>(false);
-  const [faceDescriptor, setFaceDescriptor] = useState<Float32Array | null>(null);
+  const [recipientImage, setRecipientImage] = useState<File | null>(null);
   const [feedbackMessage, setFeedbackMessage] = useState<string>('');
-
-  const [litNodeClient, setLitNodeClient] = useState<LitNodeClient | null>(null);
-  const [isLitConnecting, setIsLitConnecting] = useState<boolean>(true);
-
-  useEffect(() => {
-    const connectToLit = async () => {
-      setIsLitConnecting(true);
-      try {
-        const client = new LitNodeClient({
-          litNetwork: 'datil-test', // Use the 'datil-test' testnet
-          debug: false,
-        });
-        await client.connect();
-        setLitNodeClient(client);
-      } catch (err) {
-        console.error("Error connecting to Lit Protocol:", err);
-        toast.error("Could not connect to the decentralized network. Please refresh.");
-      } finally {
-        setIsLitConnecting(false);
-      }
-    };
-    connectToLit();
-  }, []);
-
-
-  useEffect(() => {
-    if (isSuccess) {
-      toast.success('Policy created on-chain successfully!');
-    }
-    if (isError) {
-      console.error("Transaction Error:", error);
-      toast.error(`On-chain transaction failed: ${error?.message || 'Unknown error'}`);
-    }
-  }, [isSuccess, isError, error]);
-
-  useEffect(() => {
-    const loadModels = async () => {
-      const MODEL_URL = '/models';
-      try {
-        await Promise.all([
-          faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
-          faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-          faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
-        ]);
-        setModelsLoaded(true);
-      } catch (e) {
-        setFeedbackMessage('Error: Could not load AI models.');
-        console.error('Model loading error:', e);
-      }
-    };
-    loadModels();
-  }, []);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -133,32 +30,10 @@ const SecureLinkForm = () => {
     }
   };
 
-  const handleRecipientImagesChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!modelsLoaded) {
-      setFeedbackMessage('Please wait, AI models are still loading.');
-      return;
-    }
+  const handleRecipientImagesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      const image = e.target.files[0];
-      setFeedbackMessage('Processing face...');
-      try {
-        const imageElement = await faceapi.bufferToImage(image);
-        const detection = await faceapi
-          .detectSingleFace(imageElement, new faceapi.TinyFaceDetectorOptions())
-          .withFaceLandmarks()
-          .withFaceDescriptor();
-        
-        if (detection) {
-          setFaceDescriptor(detection.descriptor);
-          setFeedbackMessage('✅ Face data extracted successfully.');
-        } else {
-          setFaceDescriptor(null);
-          setFeedbackMessage('❌ No face detected. Please try another image.');
-        }
-      } catch (error) {
-        setFeedbackMessage('An error occurred during face processing.');
-        console.error(error);
-      }
+      setRecipientImage(e.target.files[0]);
+      setFeedbackMessage('✅ Recipient photo selected.');
     }
   };
 
@@ -168,166 +43,51 @@ const SecureLinkForm = () => {
       toast.error('You must be logged in to create a link.');
       return;
     }
-    if (!address || !connector) {
-        toast.error('Please connect your wallet first.');
-        return;
-    }
-    if (!litNodeClient) {
-      toast.error('Still connecting to the decentralized network. Please wait a moment.');
+    if ((shareMode === 'file' && !file) || (shareMode === 'text' && !textContent.trim())) {
+      toast.error('Please provide the content you want to share.');
       return;
     }
-
-    const contractAddress = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS;
-    if (!contractAddress || !isAddress(contractAddress)) {
-      toast.error("Invalid or missing contract address. Please check your .env.local file.");
-      setIsSubmitting(false);
-      return;
-    }
-
-    const pinataJwt = process.env.NEXT_PUBLIC_PINATA_JWT;
-    if (!pinataJwt) {
-      toast.error("Pinata JWT is not configured. Please check your .env.local file.");
-      setIsSubmitting(false);
+    if (!recipientImage) {
+      toast.error('Please provide a recipient photo.');
       return;
     }
 
     setIsSubmitting(true);
-    setFeedbackMessage('');
+    setFeedbackMessage('Processing and encrypting on the server...');
 
-    let dataToEncrypt: CryptoJS.lib.WordArray;
-    let mimeType: string = 'text/plain';
-
-    if (shareMode === 'file') {
-      if (!file) {
-        toast.error('Please select a file to share.');
-        setIsSubmitting(false);
-        return;
-      }
-      mimeType = file.type;
-      const arrayBuffer = await file.arrayBuffer();
-      dataToEncrypt = CryptoJS.lib.WordArray.create(arrayBuffer);
+    const formData = new FormData();
+    if (shareMode === 'file' && file) {
+      formData.append('content', file);
+      formData.append('mimeType', file.type);
     } else {
-      if (textContent.trim() === '') {
-        toast.error('Please enter some text to share.');
-        setIsSubmitting(false);
-        return;
-      }
-      dataToEncrypt = CryptoJS.enc.Utf8.parse(textContent);
+      formData.append('content', textContent);
+      formData.append('mimeType', 'text/plain');
     }
-
-    if (!faceDescriptor) {
-      toast.error('Please provide a recipient face and wait for it to be processed.');
-      setIsSubmitting(false);
-      return;
-    }
-
+    formData.append('recipientImage', recipientImage);
+    formData.append('expiry', expiry.toString());
+    formData.append('maxAttempts', maxAttempts.toString());
+    formData.append('isText', (shareMode === 'text').toString());
+    formData.append('creatorId', user.uid);
+    
     try {
-      const secretKey = CryptoJS.lib.WordArray.random(32).toString(CryptoJS.enc.Hex);
-      const encrypted = CryptoJS.AES.encrypt(dataToEncrypt, secretKey);
-      const encryptedDataString = encrypted.toString();
-      
-      const faceDescriptorString = JSON.stringify(Array.from(faceDescriptor));
-
-      setFeedbackMessage('Waiting for wallet signature...');
-
-      // Get session signatures
-      const resourceAbilityRequests = [{
-        resource: new LitActionResource('*'),
-        ability: 'litAction:execute',
-      }];
-
-      const authNeededCallback = async (params: any) => {
-        const { messageToSign } = params;
-
-        if (!address) {
-          toast.error("Wallet not connected, cannot sign message");
-          throw new Error("Wallet not connected");
-        }
-
-        const signature = await signMessage(config, { connector, message: messageToSign });
-
-        return {
-          sig: signature,
-          derivedVia: 'web3.eth.personal.sign',
-          signedMessage: messageToSign,
-          address: address,
-        };
-      };
-
-      const sessionSigs = await litNodeClient.getSessionSigs({
-        resourceAbilityRequests,
-        authNeededCallback,
+      const response = await fetch('/api/createLink', {
+        method: 'POST',
+        body: formData,
       });
 
-      setFeedbackMessage('Uploading to secure storage via Lit Protocol...');
-
-      const uploadPromises = [
-        litNodeClient.executeJs({
-          code: litActionCode,
-          sessionSigs,
-          jsParams: {
-            encryptedData: encryptedDataString,
-            dataType: 'string',
-            pinataJwt: pinataJwt,
-          },
-        }),
-        litNodeClient.executeJs({
-          code: litActionCode,
-          sessionSigs,
-          jsParams: {
-            encryptedData: faceDescriptorString,
-            dataType: 'json',
-            pinataJwt: pinataJwt,
-          },
-        }),
-      ];
-
-      const [resourceResult, descriptorResult] = await Promise.all(uploadPromises);
-
-      const resourceCid = JSON.parse(resourceResult.response as string).cid;
-      const faceCid = JSON.parse(descriptorResult.response as string).cid;
-
-      if (!resourceCid || !faceCid) {
-        console.error("Lit Action Response (Resource):", resourceResult.response);
-        console.error("Lit Action Response (Descriptor):", descriptorResult.response);
-        throw new Error('Failed to get CIDs from IPFS upload via Lit Protocol.');
+      if (!response.ok) {
+        const { error } = await response.json();
+        throw new Error(error || 'Failed to create secure link.');
       }
 
-      setFeedbackMessage('Please confirm the transaction in your wallet...');
-      
-      const policyId = toHex(window.crypto.getRandomValues(new Uint8Array(32)));
-      const expiryTimestamp = Math.floor(Date.now() / 1000) + expiry;
-
-      writeContract({
-        address: contractAddress as `0x${string}`,
-        abi: ShieldABI.abi,
-        functionName: 'createPolicy',
-        args: [policyId, expiryTimestamp, maxAttempts],
-      });
-      
-      setFeedbackMessage('Creating secure link...');
-      
-      await setDoc(doc(db, 'policies', policyId), {
-        creatorId: user.uid,
-        resourceCid: resourceCid,
-        faceCid: faceCid,
-        secretKey: secretKey,
-        mimeType: mimeType,
-        isText: shareMode === 'text',
-        expiry: expiryTimestamp,
-        maxAttempts: maxAttempts,
-        attempts: 0,
-        valid: true,
-      });
-
-      const link = `${window.location.origin}/r/${policyId}`;
+      const { link } = await response.json();
       setSecureLink(link);
       toast.success('Secure link generated successfully!');
       setFeedbackMessage('');
 
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      toast.error('An error occurred. Please check the console.');
+      toast.error(error.message || 'An error occurred.');
       setFeedbackMessage('An error occurred. Please try again.');
     } finally {
       setIsSubmitting(false);
@@ -368,7 +128,7 @@ const SecureLinkForm = () => {
 
         <label className="file-label recipient-face-selector">
           <span>Recipient Face</span>
-          <input className="input" type="file" accept="image/*" onChange={handleRecipientImagesChange} required disabled={!modelsLoaded} />
+          <input className="input" type="file" accept="image/*" onChange={handleRecipientImagesChange} required />
           {feedbackMessage && <p className="feedback-message">{feedbackMessage}</p>}
         </label>
 
@@ -383,8 +143,8 @@ const SecureLinkForm = () => {
           </label>
         </div>  
         
-        <button className="submit generate-link-button-selector" type="submit" disabled={isSubmitting || !faceDescriptor || !user || isLitConnecting}>
-          {isLitConnecting ? 'Connecting to Network...' : (isSubmitting ? 'Generating...' : (user ? 'Generate Link' : 'Sign in to Generate Link'))}
+        <button className="submit generate-link-button-selector" type="submit" disabled={isSubmitting || !recipientImage || !user}>
+          {isSubmitting ? 'Generating...' : (user ? 'Generate Link' : 'Sign in to Generate Link')}
         </button>
 
         {secureLink && (

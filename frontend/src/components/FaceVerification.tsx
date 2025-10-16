@@ -15,7 +15,6 @@ export default function FaceVerification({ onVerificationResult, setInfo }: Face
   const [modelsLoaded, setModelsLoaded] = useState<boolean>(false);
 
   useEffect(() => {
-    // Initialize the web worker
     workerRef.current = new Worker(new URL('../workers/vision.worker.ts', import.meta.url));
 
     const handleWorkerMessage = (event: MessageEvent) => {
@@ -41,12 +40,9 @@ export default function FaceVerification({ onVerificationResult, setInfo }: Face
     };
 
     workerRef.current.addEventListener('message', handleWorkerMessage);
-    
-    // Send a message to the worker to start loading the models
     setInfo('Loading AI models...');
     workerRef.current.postMessage({ type: 'LOAD_MODELS' });
 
-    // Cleanup function to terminate the worker when the component unmounts
     return () => {
       workerRef.current?.removeEventListener('message', handleWorkerMessage);
       workerRef.current?.terminate();
@@ -62,7 +58,6 @@ export default function FaceVerification({ onVerificationResult, setInfo }: Face
         }
       } catch (err) {
         toast.error('Could not start camera. Please grant permission and refresh.');
-        console.error('Camera error:', err);
       }
     };
 
@@ -89,16 +84,13 @@ export default function FaceVerification({ onVerificationResult, setInfo }: Face
         }
       }
     };
-
-    const interval = setInterval(processFrame, 500); // Process a frame every 500ms
-
+    const interval = setInterval(processFrame, 500);
     return () => clearInterval(interval);
   };
 
   return (
     <div className="relative w-full max-w-xs mx-auto">
       <video ref={videoRef} autoPlay muted onPlay={handleVideoPlay} className="w-full rounded-lg" />
-      {/* The canvas for drawing detections is removed as the worker doesn't send draw data */}
     </div>
   );
 }
